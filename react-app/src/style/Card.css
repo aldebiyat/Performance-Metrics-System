@@ -77,3 +77,57 @@
 .card-footer p {
   margin: 0;
 }
+
+/* Skeleton loading styles */
+.card-skeleton {
+  animation: pulse 1.5s infinite;
+}
+
+.card-skeleton .card-header {
+  background-color: #e5e7eb;
+  height: 40px;
+}
+
+.skeleton-text {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.skeleton-count {
+  width: 80px;
+  height: 24px;
+}
+
+.skeleton-footer {
+  width: 150px;
+  height: 12px;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Last updated text */
+.last-updated {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 0 10px;
+  margin: 8px 0;
+}

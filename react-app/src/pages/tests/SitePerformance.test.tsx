@@ -3,27 +3,44 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SitePerformance from '../SitePerformance';
 
-// Mocking the global fetch API call for the SitePerformance component
+const mockApiResponse = {
+  success: true,
+  data: {
+    category: { id: 3, slug: 'performance', name: 'Site Performance' },
+    metrics: [
+      {
+        id: 9,
+        name: 'Users',
+        slug: 'users',
+        description: null,
+        icon: null,
+        count: 1500,
+        weekOverWeekChange: 7,
+        percentile: 95,
+        recordedAt: '2025-12-30',
+      },
+      {
+        id: 10,
+        name: 'Two or More Sessions',
+        slug: 'two_or_more_sessions',
+        description: null,
+        icon: null,
+        count: 900,
+        weekOverWeekChange: -3,
+        percentile: 80,
+        recordedAt: '2025-12-30',
+      },
+    ],
+    dateRange: { from: '2025-12-01', to: '2025-12-30' },
+  },
+};
+
 beforeEach(() => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       ok: true,
       status: 200,
-      json: () =>
-        Promise.resolve([
-          {
-            'Metric Name': 'Users',
-            'Metric Count': '1500',
-            'Week-Over-Week Change': '7',
-            'Percentile': '95',
-          },
-          {
-            'Metric Name': 'Two or More Sessions',
-            'Metric Count': '900',
-            'Week-Over-Week Change': '-3',
-            'Percentile': '80',
-          },
-        ]),
+      json: () => Promise.resolve(mockApiResponse),
     } as Response)
   );
 });
@@ -34,14 +51,12 @@ afterEach(() => {
 
 describe('SitePerformance Page', () => {
   it('renders site performance metrics data in card components', async () => {
-    render(<SitePerformance />);
+    render(<SitePerformance dateRange="30d" />);
 
-    // Wait for the data to be rendered
     await waitFor(() => screen.getByText('Users'));
 
-    // Check if the metrics are displayed correctly
     expect(screen.getByText('Users')).toBeInTheDocument();
-    expect(screen.getByText('1500')).toBeInTheDocument();
+    expect(screen.getByText('1,500')).toBeInTheDocument();
     expect(screen.getByText('95%')).toBeInTheDocument();
 
     expect(screen.getByText('Two or More Sessions')).toBeInTheDocument();

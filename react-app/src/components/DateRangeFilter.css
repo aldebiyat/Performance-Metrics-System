@@ -1,0 +1,31 @@
+.date-range-filter {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.date-range-btn {
+  padding: 8px 16px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-range-btn:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.date-range-btn.active {
+  background-color: #4caf50;
+  border-color: #4caf50;
+  color: white;
+}
+
+.date-range-btn.active:hover {
+  background-color: #43a047;
+}
