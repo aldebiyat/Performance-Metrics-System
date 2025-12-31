@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../types';
+import logger from '../config/logger';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -35,7 +36,7 @@ export const errorHandler = (
   _next: NextFunction
 ): void => {
   // Log error
-  console.error('Error:', {
+  logger.error('Error:', {
     message: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     path: req.path,

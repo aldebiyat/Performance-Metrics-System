@@ -1,6 +1,7 @@
 import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { createClient } from 'redis';
+import logger from '../config/logger';
 
 // Create Redis client for rate limiting (optional, falls back to memory)
 let redisClient: ReturnType<typeof createClient> | null = null;
@@ -12,18 +13,18 @@ export const initRateLimitRedis = async () => {
 
       // Handle Redis connection errors gracefully
       redisClient.on('error', (err) => {
-        console.error('Redis rate limiter error:', err.message);
+        logger.error('Redis rate limiter error:', { message: err.message });
         // Don't crash - the rate limiter will fall back to memory store
       });
 
       redisClient.on('reconnecting', () => {
-        console.log('Redis rate limiter reconnecting...');
+        logger.info('Redis rate limiter reconnecting...');
       });
 
       await redisClient.connect();
-      console.log('Rate limiter connected to Redis');
+      logger.info('Rate limiter connected to Redis');
     } catch (error) {
-      console.warn('Redis not available, using memory store for rate limiting');
+      logger.warn('Redis not available, using memory store for rate limiting');
       redisClient = null;
     }
   }

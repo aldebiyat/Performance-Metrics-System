@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import { runMigrations } from './utils/seedData';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter, initRateLimitRedis } from './middleware/rateLimiter';
+import { requestLogger } from './middleware/requestLogger';
+import logger from './config/logger';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
@@ -28,6 +30,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Request logging middleware
+app.use(requestLogger);
 
 // Security headers
 app.use(helmet());
@@ -68,11 +73,11 @@ async function startServer() {
     await initRateLimitRedis();
 
     app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Server is running on http://localhost:${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 }
