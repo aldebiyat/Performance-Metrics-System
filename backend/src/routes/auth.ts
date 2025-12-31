@@ -3,18 +3,16 @@ import { authService } from '../services/authService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { ApiResponse } from '../types';
+import { validate, registerSchema, loginSchema, refreshTokenSchema } from '../validators';
 
 const router = Router();
 
 // Register new user
 router.post(
   '/register',
+  validate(registerSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password, name } = req.body;
-
-    if (!email || !password) {
-      throw Errors.validation('Email and password are required');
-    }
 
     const { user, tokens } = await authService.register(email, password, name);
 
@@ -30,12 +28,9 @@ router.post(
 // Login
 router.post(
   '/login',
+  validate(loginSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      throw Errors.validation('Email and password are required');
-    }
 
     const { user, tokens } = await authService.login(email, password);
 
@@ -51,12 +46,9 @@ router.post(
 // Refresh tokens
 router.post(
   '/refresh',
+  validate(refreshTokenSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      throw Errors.validation('Refresh token is required');
-    }
 
     const tokens = await authService.refreshTokens(refreshToken);
 

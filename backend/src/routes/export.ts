@@ -3,32 +3,17 @@ import { exportService } from '../services/exportService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { DateRange } from '../types';
+import { validate, exportQuerySchema, Category } from '../validators';
 
 const router = Router();
-
-// Validate date range parameter
-const validateRange = (range: string | undefined): DateRange => {
-  const validRanges: DateRange[] = ['7d', '30d', '90d', '1y'];
-  if (range && validRanges.includes(range as DateRange)) {
-    return range as DateRange;
-  }
-  return '30d';
-};
-
-// Validate category parameter
-const validateCategory = (category: string | undefined): string => {
-  if (!category) return 'all';
-  const validCategories = ['all', 'overview', 'traffic', 'performance'];
-  return validCategories.includes(category) ? category : 'all';
-};
 
 // Export as CSV
 router.get(
   '/csv',
   authenticate,
+  validate(exportQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const category = validateCategory(req.query.category as string);
-    const range = validateRange(req.query.range as string);
+    const { category, range } = req.query as { category: Category; range: DateRange };
 
     const { content, filename } = await exportService.generateCSV(category, range);
 
@@ -42,9 +27,9 @@ router.get(
 router.get(
   '/pdf',
   authenticate,
+  validate(exportQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const category = validateCategory(req.query.category as string);
-    const range = validateRange(req.query.range as string);
+    const { category, range } = req.query as { category: Category; range: DateRange };
 
     const { buffer, filename } = await exportService.generatePDF(category, range);
 

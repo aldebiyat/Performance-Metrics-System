@@ -22,7 +22,8 @@
     "jsonwebtoken": "^9.0.2",
     "node-cache": "^5.1.2",
     "pdfkit": "^0.15.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

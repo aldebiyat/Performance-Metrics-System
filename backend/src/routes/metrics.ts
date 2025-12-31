@@ -3,17 +3,9 @@ import { metricsService } from '../services/metricsService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { ApiResponse, DateRange, CategoryWithMetrics, Category } from '../types';
+import { validate, metricsQuerySchema } from '../validators';
 
 const router = Router();
-
-// Validate date range parameter
-const validateRange = (range: string | undefined): DateRange => {
-  const validRanges: DateRange[] = ['7d', '30d', '90d', '1y'];
-  if (range && validRanges.includes(range as DateRange)) {
-    return range as DateRange;
-  }
-  return '30d';
-};
 
 // Get all categories
 router.get(
@@ -35,8 +27,9 @@ router.get(
 router.get(
   '/summary',
   authenticate,
+  validate(metricsQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const range = validateRange(req.query.range as string);
+    const { range } = req.query as { range: DateRange };
     const summary = await metricsService.getSummary(range);
 
     const response: ApiResponse<typeof summary> = {
@@ -52,9 +45,10 @@ router.get(
 router.get(
   '/:category',
   authenticate,
+  validate(metricsQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
     const { category } = req.params;
-    const range = validateRange(req.query.range as string);
+    const { range } = req.query as { range: DateRange };
 
     const data = await metricsService.getMetricsByCategory(category, range);
 
