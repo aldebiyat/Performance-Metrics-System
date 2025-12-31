@@ -2,11 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
 import { runMigrations } from './utils/seedData';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter, initRateLimitRedis } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/requestLogger';
 import logger from './config/logger';
+import { swaggerSpec } from './config/swagger';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
@@ -47,6 +49,9 @@ app.use(helmet.contentSecurityPolicy({
 
 // Apply rate limiting to all API routes
 app.use('/api', apiLimiter);
+
+// Swagger API documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
