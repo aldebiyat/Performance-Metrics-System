@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -33,6 +34,18 @@ const app = express();
 // Trust proxy - required for rate limiting when behind a reverse proxy (e.g., nginx, load balancer)
 // This ensures req.ip returns the client's real IP from X-Forwarded-For header
 app.set('trust proxy', 1);
+
+// Compression middleware - compress responses for better performance
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6, // Default compression level (0-9)
+  threshold: 1024, // Only compress responses > 1KB
+}));
 
 // CORS configuration
 const corsOptions = {
