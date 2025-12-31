@@ -49,6 +49,7 @@ router.post(
 // Refresh tokens
 router.post(
   '/refresh',
+  authLimiter,
   validate(refreshTokenSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { refreshToken } = req.body;

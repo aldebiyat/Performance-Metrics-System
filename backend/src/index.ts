@@ -13,6 +13,10 @@ dotenv.config();
 
 const app = express();
 
+// Trust proxy - required for rate limiting when behind a reverse proxy (e.g., nginx, load balancer)
+// This ensures req.ip returns the client's real IP from X-Forwarded-For header
+app.set('trust proxy', 1);
+
 // CORS configuration
 const corsOptions = {
   origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],

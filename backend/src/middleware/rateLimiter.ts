@@ -9,6 +9,17 @@ export const initRateLimitRedis = async () => {
   if (process.env.REDIS_URL) {
     try {
       redisClient = createClient({ url: process.env.REDIS_URL });
+
+      // Handle Redis connection errors gracefully
+      redisClient.on('error', (err) => {
+        console.error('Redis rate limiter error:', err.message);
+        // Don't crash - the rate limiter will fall back to memory store
+      });
+
+      redisClient.on('reconnecting', () => {
+        console.log('Redis rate limiter reconnecting...');
+      });
+
       await redisClient.connect();
       console.log('Rate limiter connected to Redis');
     } catch (error) {
