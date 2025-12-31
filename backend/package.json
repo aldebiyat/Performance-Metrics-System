@@ -7,7 +7,10 @@
     "dev": "nodemon",
     "build": "tsc",
     "db:init": "ts-node src/utils/seedData.ts",
-    "test": "jest"
+    "test": "jest",
+    "migrate:up": "node-pg-migrate up -m migrations",
+    "migrate:down": "node-pg-migrate down -m migrations",
+    "migrate:create": "node-pg-migrate create -m migrations"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +26,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "node-cache": "^5.1.2",
+    "node-pg-migrate": "^8.0.4",
     "pdfkit": "^0.15.0",
     "pg": "^8.11.3",
     "rate-limit-redis": "^4.3.1",

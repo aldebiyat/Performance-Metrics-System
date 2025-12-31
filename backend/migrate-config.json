@@ -1,0 +1,7 @@
+{
+  "databaseUrl": {"ENV": "DATABASE_URL"},
+  "migrationsDir": "migrations",
+  "direction": "up",
+  "count": 1000,
+  "ignorePattern": ".*\\.d\\.ts"
+}
