@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { runMigrations } from './utils/seedData';
 import { errorHandler } from './middleware/errorHandler';
+import { apiLimiter, initRateLimitRedis } from './middleware/rateLimiter';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
@@ -22,6 +23,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Apply rate limiting to all API routes
+app.use('/api', apiLimiter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -43,6 +47,9 @@ async function startServer() {
   try {
     // Initialize database and seed data
     await runMigrations();
+
+    // Initialize Redis for rate limiting (optional)
+    await initRateLimitRedis();
 
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);

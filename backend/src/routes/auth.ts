@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authService } from '../services/authService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimiter';
 import { ApiResponse } from '../types';
 import { validate, registerSchema, loginSchema, refreshTokenSchema } from '../validators';
 
@@ -10,6 +11,7 @@ const router = Router();
 // Register new user
 router.post(
   '/register',
+  authLimiter,
   validate(registerSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password, name } = req.body;
@@ -28,6 +30,7 @@ router.post(
 // Login
 router.post(
   '/login',
+  authLimiter,
   validate(loginSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
