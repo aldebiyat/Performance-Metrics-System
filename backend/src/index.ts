@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { runMigrations } from './utils/seedData';
 import { errorHandler } from './middleware/errorHandler';
@@ -27,6 +28,17 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Security headers
+app.use(helmet());
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    defaultSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    scriptSrc: ["'self'"],
+    imgSrc: ["'self'", "data:", "blob:"],
+  },
+}));
 
 // Apply rate limiting to all API routes
 app.use('/api', apiLimiter);
