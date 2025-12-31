@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -17,6 +18,15 @@ import passwordResetRoutes from './routes/passwordReset';
 
 // Load environment variables
 dotenv.config();
+
+// Initialize Sentry before anything else
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  });
+}
 
 const app = express();
 
@@ -65,6 +75,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth', passwordResetRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/export', exportRoutes);
+
+// Sentry error handler (must be before other error handlers)
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.Handlers.errorHandler());
+}
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
