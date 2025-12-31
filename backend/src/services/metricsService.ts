@@ -164,7 +164,7 @@ export const metricsService = {
     );
 
     // Invalidate cache
-    cacheService.flush();
+    await cacheService.flush();
   },
 };
 

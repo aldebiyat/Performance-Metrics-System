@@ -1,30 +1,69 @@
 import NodeCache from 'node-cache';
+import { getRedisClient } from '../config/redis';
+import logger from '../config/logger';
 
-// Cache with 60 second TTL by default
-const cache = new NodeCache({
-  stdTTL: 60,
-  checkperiod: 120,
-  useClones: false,
-});
+// Fallback memory cache
+const memoryCache = new NodeCache({ stdTTL: 300 });
 
 export const cacheService = {
-  get<T>(key: string): T | undefined {
-    return cache.get<T>(key);
-  },
+  async get<T>(key: string): Promise<T | null> {
+    const redis = getRedisClient();
 
-  set<T>(key: string, value: T, ttl?: number): boolean {
-    if (ttl) {
-      return cache.set(key, value, ttl);
+    if (redis) {
+      try {
+        const value = await redis.get(key);
+        return value ? JSON.parse(value) : null;
+      } catch (error) {
+        logger.error('Redis get error', { key, error });
+        // Fallback to memory
+      }
     }
-    return cache.set(key, value);
+
+    return memoryCache.get<T>(key) || null;
   },
 
-  del(key: string): number {
-    return cache.del(key);
+  async set<T>(key: string, value: T, ttlSeconds: number = 300): Promise<void> {
+    const redis = getRedisClient();
+
+    if (redis) {
+      try {
+        await redis.setEx(key, ttlSeconds, JSON.stringify(value));
+        return;
+      } catch (error) {
+        logger.error('Redis set error', { key, error });
+        // Fallback to memory
+      }
+    }
+
+    memoryCache.set(key, value, ttlSeconds);
   },
 
-  flush(): void {
-    cache.flushAll();
+  async del(key: string): Promise<void> {
+    const redis = getRedisClient();
+
+    if (redis) {
+      try {
+        await redis.del(key);
+      } catch (error) {
+        logger.error('Redis del error', { key, error });
+      }
+    }
+
+    memoryCache.del(key);
+  },
+
+  async flush(): Promise<void> {
+    const redis = getRedisClient();
+
+    if (redis) {
+      try {
+        await redis.flushDb();
+      } catch (error) {
+        logger.error('Redis flush error', { error });
+      }
+    }
+
+    memoryCache.flushAll();
   },
 
   // Generate cache key for metrics
@@ -32,33 +71,22 @@ export const cacheService = {
     return `metrics:${category}:${range}`;
   },
 
-  // Check if key exists and get cached timestamp
-  getCachedAt(key: string): string | null {
-    const stats = cache.getTtl(key);
-    if (stats) {
-      const cachedAt = new Date(stats - (cache.options.stdTTL || 60) * 1000);
-      return cachedAt.toISOString();
-    }
-    return null;
-  },
-
   // Wrapper for cached async functions
   async getOrSet<T>(
     key: string,
     fetchFn: () => Promise<T>,
-    ttl?: number
-  ): Promise<{ data: T; cached: boolean; cachedAt?: string }> {
-    const cached = this.get<T>(key);
-    if (cached !== undefined) {
+    ttl: number = 300
+  ): Promise<{ data: T; cached: boolean }> {
+    const cached = await this.get<T>(key);
+    if (cached !== null) {
       return {
         data: cached,
         cached: true,
-        cachedAt: this.getCachedAt(key) || undefined,
       };
     }
 
     const data = await fetchFn();
-    this.set(key, data, ttl);
+    await this.set(key, data, ttl);
 
     return {
       data,

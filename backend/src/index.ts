@@ -9,6 +9,7 @@ import { apiLimiter, initRateLimitRedis } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/requestLogger';
 import logger from './config/logger';
 import { swaggerSpec } from './config/swagger';
+import { initRedis } from './config/redis';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
@@ -75,6 +76,9 @@ async function startServer() {
   try {
     // Initialize database and seed data
     await runMigrations();
+
+    // Initialize Redis for caching
+    await initRedis();
 
     // Initialize Redis for rate limiting (optional)
     await initRateLimitRedis();
