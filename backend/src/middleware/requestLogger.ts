@@ -6,7 +6,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
 
   // Attach request ID to request object
-  (req as any).requestId = requestId;
+  req.requestId = requestId;
   res.setHeader('X-Request-ID', requestId);
 
   res.on('finish', () => {

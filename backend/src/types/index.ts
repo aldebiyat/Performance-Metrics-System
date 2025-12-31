@@ -99,3 +99,12 @@ export interface AuthTokens {
 }
 
 export type DateRange = '7d' | '30d' | '90d' | '1y';
+
+// Extend Express Request type for requestId
+declare global {
+  namespace Express {
+    interface Request {
+      requestId?: string;
+    }
+  }
+}

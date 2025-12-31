@@ -37,6 +37,7 @@ export const errorHandler = (
 ): void => {
   // Log error
   logger.error('Error:', {
+    requestId: req.requestId,
     message: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     path: req.path,
