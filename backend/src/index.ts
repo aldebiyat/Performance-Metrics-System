@@ -15,6 +15,7 @@ import { initRedis } from './config/redis';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
+import importRoutes from './routes/import';
 import passwordResetRoutes from './routes/passwordReset';
 import adminRoutes from './routes/admin';
 
@@ -89,6 +90,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth', passwordResetRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/import', importRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Sentry error handler (must be before other error handlers)

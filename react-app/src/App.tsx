@@ -13,6 +13,7 @@ import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
+import DataImport from './pages/admin/DataImport';
 import Header from './components/Header';
 import DateRangeFilter from './components/DateRangeFilter';
 import ExportButton from './components/ExportButton';
@@ -70,6 +71,15 @@ const App: React.FC = () => {
                 <ProtectedRoute requireAdmin>
                   <Header />
                   <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/import"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <Header />
+                  <DataImport />
                 </ProtectedRoute>
               }
             />
