@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { importService } from '../services/importService';
+import { auditService } from '../services/auditService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
@@ -171,6 +172,20 @@ router.post(
 
     // Import data
     const importResult = await importService.importMetrics(validationResult.validRows);
+
+    await auditService.log({
+      userId: req.user?.userId,
+      action: 'DATA_IMPORTED',
+      entityType: 'metrics',
+      newValues: {
+        filename: req.file.originalname,
+        rowsImported: importResult.rowsImported,
+        rowsSkipped: importResult.rowsSkipped,
+        totalRows: parsedRows.length,
+      },
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    });
 
     logger.info(`CSV import completed by user ${req.user?.userId}`, {
       rowsImported: importResult.rowsImported,

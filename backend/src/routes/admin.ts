@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { adminService } from '../services/adminService';
+import { auditService } from '../services/auditService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
@@ -309,7 +310,21 @@ router.put(
       throw Errors.badRequest('Cannot remove your own admin role');
     }
 
+    // Get old values before update for audit
+    const oldUser = await adminService.getUserById(id);
+
     const user = await adminService.updateUser(id, { role, name, is_active });
+
+    await auditService.log({
+      userId: req.user!.userId,
+      action: 'USER_UPDATED',
+      entityType: 'user',
+      entityId: id,
+      oldValues: oldUser ? { role: oldUser.role, name: oldUser.name, is_active: oldUser.is_active } : undefined,
+      newValues: { role: user.role, name: user.name, is_active: user.is_active },
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    });
 
     const response: ApiResponse<typeof user> = {
       success: true,
@@ -373,11 +388,126 @@ router.delete(
       throw Errors.badRequest('Cannot delete your own account');
     }
 
+    // Get user info before delete for audit
+    const deletedUser = await adminService.getUserById(id);
+
     await adminService.deleteUser(id);
+
+    await auditService.log({
+      userId: req.user!.userId,
+      action: 'USER_DELETED',
+      entityType: 'user',
+      entityId: id,
+      oldValues: deletedUser ? { email: deletedUser.email, name: deletedUser.name, role: deletedUser.role } : undefined,
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    });
 
     const response: ApiResponse<{ message: string }> = {
       success: true,
       data: { message: 'User deleted successfully' },
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /api/admin/audit-logs:
+ *   get:
+ *     summary: Get audit logs with pagination and filtering
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Items per page (max 100)
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: integer
+ *         description: Filter by user ID
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *         description: Filter by action type
+ *     responses:
+ *       200:
+ *         description: Paginated list of audit logs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     logs:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           user_id:
+ *                             type: integer
+ *                           user_email:
+ *                             type: string
+ *                           user_name:
+ *                             type: string
+ *                           action:
+ *                             type: string
+ *                           entity_type:
+ *                             type: string
+ *                           entity_id:
+ *                             type: integer
+ *                           old_values:
+ *                             type: object
+ *                           new_values:
+ *                             type: object
+ *                           ip_address:
+ *                             type: string
+ *                           created_at:
+ *                             type: string
+ *                             format: date-time
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
+router.get(
+  '/audit-logs',
+  asyncHandler(async (req: Request, res: Response) => {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100);
+    const userId = req.query.userId ? parseInt(req.query.userId as string, 10) : undefined;
+    const action = req.query.action as string | undefined;
+
+    const result = await auditService.getAuditLogs({ page, limit, userId, action });
+
+    const response: ApiResponse<typeof result> = {
+      success: true,
+      data: result,
     };
 
     res.json(response);

@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authService } from '../services/authService';
+import { auditService } from '../services/auditService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
-import { authenticate } from '../middleware/auth';
+import { authenticate, verifyToken } from '../middleware/auth';
 import { authLimiter } from '../middleware/rateLimiter';
 import { ApiResponse } from '../types';
 import { validate, registerSchema, loginSchema, refreshTokenSchema } from '../validators';
@@ -73,6 +74,16 @@ router.post(
 
     const { user, tokens } = await authService.register(email, password, name);
 
+    await auditService.log({
+      userId: user.id,
+      action: 'USER_REGISTERED',
+      entityType: 'user',
+      entityId: user.id,
+      newValues: { email: user.email, name: user.name },
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    });
+
     const response: ApiResponse<typeof user & { tokens: typeof tokens }> = {
       success: true,
       data: { ...user, tokens },
@@ -142,6 +153,15 @@ router.post(
     const { email, password } = req.body;
 
     const { user, tokens } = await authService.login(email, password);
+
+    await auditService.log({
+      userId: user.id,
+      action: 'USER_LOGIN',
+      entityType: 'user',
+      entityId: user.id,
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    });
 
     const response: ApiResponse<typeof user & { tokens: typeof tokens }> = {
       success: true,
@@ -248,8 +268,26 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { refreshToken } = req.body;
 
+    let userId: number | undefined;
     if (refreshToken) {
+      try {
+        const decoded = verifyToken(refreshToken);
+        userId = decoded.userId;
+      } catch {
+        // Token might be invalid, but we still want to complete logout
+      }
       await authService.logout(refreshToken);
+    }
+
+    if (userId) {
+      await auditService.log({
+        userId,
+        action: 'USER_LOGOUT',
+        entityType: 'user',
+        entityId: userId,
+        ipAddress: req.ip || req.socket.remoteAddress,
+        userAgent: req.get('user-agent'),
+      });
     }
 
     const response: ApiResponse<{ message: string }> = {

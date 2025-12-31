@@ -5,6 +5,7 @@ import { query } from '../config/database';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { passwordResetLimiter } from '../middleware/rateLimiter';
 import { emailService } from '../services/emailService';
+import { auditService } from '../services/auditService';
 import { ApiResponse } from '../types';
 import { validate } from '../validators';
 import { z } from 'zod';
@@ -215,6 +216,15 @@ router.post(
       `DELETE FROM refresh_tokens WHERE user_id = $1`,
       [resetRecord.user_id]
     );
+
+    await auditService.log({
+      userId: resetRecord.user_id,
+      action: 'PASSWORD_RESET',
+      entityType: 'user',
+      entityId: resetRecord.user_id,
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    });
 
     logger.info('Password reset successful', { userId: resetRecord.user_id, email: resetRecord.email });
 

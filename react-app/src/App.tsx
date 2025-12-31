@@ -15,6 +15,8 @@ import VerifyEmail from './pages/VerifyEmail';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
 import DataImport from './pages/admin/DataImport';
+import AuditLog from './pages/admin/AuditLog';
+import OrganizationSettings from './pages/OrganizationSettings';
 import Header from './components/Header';
 import DateRangeFilter from './components/DateRangeFilter';
 import ExportButton from './components/ExportButton';
@@ -83,6 +85,24 @@ const App: React.FC = () => {
                   <ProtectedRoute requireAdmin>
                     <Header />
                     <DataImport />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit-log"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <Header />
+                    <AuditLog />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/organization"
+                element={
+                  <ProtectedRoute>
+                    <Header />
+                    <OrganizationSettings />
                   </ProtectedRoute>
                 }
               />
