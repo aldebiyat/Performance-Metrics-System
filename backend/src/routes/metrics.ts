@@ -3,7 +3,7 @@ import { metricsService } from '../services/metricsService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { ApiResponse, DateRange, CategoryWithMetrics, Category } from '../types';
-import { validate, metricsQuerySchema } from '../validators';
+import { validate, metricsQuerySchema, categoryParamSchema } from '../validators';
 
 const router = Router();
 
@@ -45,6 +45,7 @@ router.get(
 router.get(
   '/:category',
   authenticate,
+  validate(categoryParamSchema, 'params'),
   validate(metricsQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
     const { category } = req.params;

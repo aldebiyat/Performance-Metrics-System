@@ -64,6 +64,7 @@ router.post(
 // Logout
 router.post(
   '/logout',
+  validate(refreshTokenSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { refreshToken } = req.body;
 

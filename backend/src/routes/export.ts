@@ -3,7 +3,7 @@ import { exportService } from '../services/exportService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { DateRange } from '../types';
-import { validate, exportQuerySchema, Category } from '../validators';
+import { validate, exportQuerySchema, CategoryFilter } from '../validators';
 
 const router = Router();
 
@@ -13,7 +13,7 @@ router.get(
   authenticate,
   validate(exportQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const { category, range } = req.query as { category: Category; range: DateRange };
+    const { category, range } = req.query as { category: CategoryFilter; range: DateRange };
 
     const { content, filename } = await exportService.generateCSV(category, range);
 
@@ -29,7 +29,7 @@ router.get(
   authenticate,
   validate(exportQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
-    const { category, range } = req.query as { category: Category; range: DateRange };
+    const { category, range } = req.query as { category: CategoryFilter; range: DateRange };
 
     const { buffer, filename } = await exportService.generatePDF(category, range);
 
