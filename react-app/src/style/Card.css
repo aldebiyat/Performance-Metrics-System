@@ -8,17 +8,18 @@
 
 .card {
   width: 250px;
-  background-color: white;
+  background-color: var(--bg-card);
   border-radius: 8px;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0px 4px 8px var(--shadow-color);
   padding: 15px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .card-header {
-  background-color: #4caf50;
+  background-color: var(--accent-color);
   color: white;
   padding: 10px;
   font-weight: bold;
@@ -43,19 +44,24 @@
   font-size: 20px;
   font-weight: bold;
   margin-right: 5px;
+  color: var(--text-primary);
+  transition: color 0.3s ease;
 }
 
 .divider {
   margin-right: 5px;
-  color: black;
+  color: var(--text-primary);
   font-weight: bold;
   font-size: 18px;
+  transition: color 0.3s ease;
 }
 
 .percentile {
   font-size: 18px;
   font-weight: normal;
   margin-right: 5px;
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
 }
 
 .card-icon {
@@ -66,8 +72,9 @@
 .card-footer {
   text-align: right;
   font-size: 12px;
-  color: #777;
+  color: var(--text-muted);
   margin-top: 10px;
+  transition: color 0.3s ease;
 }
 
 .performance-text {
@@ -84,12 +91,12 @@
 }
 
 .card-skeleton .card-header {
-  background-color: #e5e7eb;
+  background-color: var(--border-color);
   height: 40px;
 }
 
 .skeleton-text {
-  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background: linear-gradient(90deg, var(--border-color) 25%, var(--bg-secondary) 50%, var(--border-color) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
@@ -127,7 +134,8 @@
 /* Last updated text */
 .last-updated {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
   padding: 0 10px;
   margin: 8px 0;
+  transition: color 0.3s ease;
 }

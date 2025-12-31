@@ -8,20 +8,21 @@
   margin-right: 10px;
   border: none;
   border-radius: 5px;
-  background-color: #ccc;
-  color: #333;
+  background-color: var(--tab-bg);
+  color: var(--tab-text);
   text-align: center;
   cursor: pointer;
   font-size: 16px;
   text-decoration: none;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .tab-button.active {
-  background-color: #4caf50;
+  background-color: var(--accent-color);
   color: white;
 }
 
 .tab-button:hover {
-  background-color: #4D514C;
+  background-color: var(--tab-hover);
+  color: white;
 }

@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import '../style/Header.css';
 
 const Header: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -43,6 +45,17 @@ const Header: React.FC = () => {
             {isAdminPage ? 'Dashboard' : 'Admin'}
           </Link>
         )}
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+        >
+          {theme === 'light' ? (
+            <span className="theme-icon">&#9790;</span>
+          ) : (
+            <span className="theme-icon">&#9728;</span>
+          )}
+        </button>
       </div>
 
       {isAuthenticated && user && (

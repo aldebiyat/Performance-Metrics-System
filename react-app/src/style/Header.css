@@ -1,9 +1,10 @@
 .header {
-  background-color: #7bc184;
+  background-color: var(--header-bg);
   padding: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: background-color 0.3s ease;
 }
 
 .logo-container {
@@ -101,11 +102,12 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 200px;
-  background: white;
+  background: var(--bg-card);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px var(--shadow-color);
   z-index: 1000;
   overflow: hidden;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .user-info {
@@ -117,19 +119,22 @@
 
 .user-email {
   font-size: 14px;
-  color: #111827;
+  color: var(--text-primary);
   font-weight: 500;
+  transition: color 0.3s ease;
 }
 
 .user-role {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: capitalize;
+  transition: color 0.3s ease;
 }
 
 .dropdown-divider {
   height: 1px;
-  background-color: #e5e7eb;
+  background-color: var(--border-color);
+  transition: background-color 0.3s ease;
 }
 
 .dropdown-item {
@@ -140,19 +145,45 @@
   border: none;
   text-align: left;
   font-size: 14px;
-  color: #374151;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, color 0.3s ease;
 }
 
 .dropdown-item:hover {
-  background-color: #f3f4f6;
+  background-color: var(--bg-secondary);
 }
 
 .logout-button {
-  color: #ef4444;
+  color: var(--danger-color);
 }
 
 .logout-button:hover {
-  background-color: #fef2f2;
+  background-color: var(--bg-secondary);
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.theme-icon {
+  font-size: 20px;
+  color: white;
+  line-height: 1;
 }
