@@ -4,6 +4,7 @@ import { query } from '../config/database';
 import { User, AuthTokens, TokenPayload } from '../types';
 import { generateAccessToken, generateRefreshToken, verifyToken } from '../middleware/auth';
 import { Errors } from '../middleware/errorHandler';
+import { emailService } from './emailService';
 
 const SALT_ROUNDS = 12;
 
@@ -27,15 +28,29 @@ export const authService = {
     // Hash password
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Insert user
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationTokenExpires = new Date();
+    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24); // 24 hours expiry
+
+    // Insert user with verification token
     const result = await query(
-      `INSERT INTO users (email, password_hash, name, role)
-       VALUES ($1, $2, $3, 'viewer')
-       RETURNING id, email, name, role, is_active, created_at, updated_at`,
-      [email.toLowerCase(), passwordHash, name || null]
+      `INSERT INTO users (email, password_hash, name, role, email_verified, verification_token, verification_token_expires)
+       VALUES ($1, $2, $3, 'viewer', false, $4, $5)
+       RETURNING id, email, name, role, is_active, email_verified, created_at, updated_at`,
+      [email.toLowerCase(), passwordHash, name || null, verificationTokenHash, verificationTokenExpires]
     );
 
     const user = result.rows[0];
+
+    // Send verification email
+    try {
+      await emailService.sendVerificationEmail(user.email, verificationToken);
+    } catch (error) {
+      // Log error but don't fail registration
+      console.error('Failed to send verification email:', error);
+    }
 
     // Generate tokens
     const tokenPayload: TokenPayload = {
@@ -167,13 +182,98 @@ export const authService = {
 
   async getCurrentUser(userId: number): Promise<Omit<User, 'password_hash'> | null> {
     const result = await query(
-      `SELECT id, email, name, role, is_active, created_at, updated_at
+      `SELECT id, email, name, role, is_active, email_verified, created_at, updated_at
        FROM users
        WHERE id = $1 AND deleted_at IS NULL`,
       [userId]
     );
 
     return result.rows[0] || null;
+  },
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    // Hash the token to compare with stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with this verification token that hasn't expired
+    const result = await query(
+      `SELECT id, email, email_verified
+       FROM users
+       WHERE verification_token = $1
+         AND verification_token_expires > NOW()
+         AND deleted_at IS NULL`,
+      [tokenHash]
+    );
+
+    if (result.rows.length === 0) {
+      throw Errors.badRequest('Invalid or expired verification token');
+    }
+
+    const user = result.rows[0];
+
+    if (user.email_verified) {
+      return { message: 'Email already verified' };
+    }
+
+    // Update user to mark email as verified and clear token
+    await query(
+      `UPDATE users
+       SET email_verified = true,
+           verification_token = NULL,
+           verification_token_expires = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [user.id]
+    );
+
+    return { message: 'Email verified successfully' };
+  },
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    // Find user by email
+    const result = await query(
+      `SELECT id, email, email_verified
+       FROM users
+       WHERE email = $1 AND deleted_at IS NULL`,
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      // Don't reveal if email exists
+      return { message: 'If the email exists, a verification email has been sent' };
+    }
+
+    const user = result.rows[0];
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified' };
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationTokenExpires = new Date();
+    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24); // 24 hours expiry
+
+    // Update user with new verification token
+    await query(
+      `UPDATE users
+       SET verification_token = $1,
+           verification_token_expires = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [verificationTokenHash, verificationTokenExpires, user.id]
+    );
+
+    // Send verification email
+    try {
+      await emailService.sendVerificationEmail(user.email, verificationToken);
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+      throw Errors.internal('Failed to send verification email');
+    }
+
+    return { message: 'Verification email sent' };
   },
 };
 

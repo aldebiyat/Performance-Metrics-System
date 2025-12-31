@@ -356,4 +356,112 @@ router.post(
   })
 );
 
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   get:
+ *     summary: Verify email address
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Verification token from email
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *       400:
+ *         description: Invalid or expired token
+ */
+router.get(
+  '/verify-email',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      throw Errors.badRequest('Verification token is required');
+    }
+
+    const result = await authService.verifyEmail(token);
+
+    const response: ApiResponse<typeof result> = {
+      success: true,
+      data: result,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /api/auth/resend-verification:
+ *   post:
+ *     summary: Resend verification email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *     responses:
+ *       200:
+ *         description: Verification email sent (if email exists)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *       429:
+ *         description: Too many requests
+ */
+router.post(
+  '/resend-verification',
+  authLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      throw Errors.badRequest('Email is required');
+    }
+
+    const result = await authService.resendVerificationEmail(email);
+
+    const response: ApiResponse<typeof result> = {
+      success: true,
+      data: result,
+    };
+
+    res.json(response);
+  })
+);
+
 export default router;

@@ -5,6 +5,9 @@ export interface User {
   name: string | null;
   role: 'admin' | 'editor' | 'viewer';
   is_active: boolean;
+  email_verified: boolean;
+  verification_token?: string | null;
+  verification_token_expires?: Date | null;
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
