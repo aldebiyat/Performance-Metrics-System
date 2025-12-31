@@ -12,6 +12,7 @@ import { swaggerSpec } from './config/swagger';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
+import passwordResetRoutes from './routes/passwordReset';
 
 // Load environment variables
 dotenv.config();
@@ -60,6 +61,7 @@ app.get('/api/health', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', passwordResetRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/export', exportRoutes);
 
