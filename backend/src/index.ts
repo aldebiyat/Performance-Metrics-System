@@ -16,6 +16,7 @@ import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import exportRoutes from './routes/export';
 import passwordResetRoutes from './routes/passwordReset';
+import adminRoutes from './routes/admin';
 
 // Load environment variables
 dotenv.config();
@@ -88,6 +89,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth', passwordResetRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Sentry error handler (must be before other error handlers)
 if (process.env.SENTRY_DSN) {

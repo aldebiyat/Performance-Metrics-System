@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../style/Header.css';
 
@@ -6,6 +7,8 @@ const Header: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const isAdminPage = location.pathname.startsWith('/admin');
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -26,7 +29,20 @@ const Header: React.FC = () => {
   return (
     <header className="header">
       <div className="logo-container">
-        <img src="/assets/BNM_Logo_White.png" alt="Benchmetrics Logo" className="logo" />
+        <Link to="/">
+          <img src="/assets/BNM_Logo_White.png" alt="Benchmetrics Logo" className="logo" />
+        </Link>
+      </div>
+
+      <div className="header-nav">
+        {isAuthenticated && user?.role === 'admin' && (
+          <Link
+            to={isAdminPage ? '/' : '/admin'}
+            className="admin-nav-link"
+          >
+            {isAdminPage ? 'Dashboard' : 'Admin'}
+          </Link>
+        )}
       </div>
 
       {isAuthenticated && user && (
