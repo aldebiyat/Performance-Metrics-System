@@ -1,8 +1,23 @@
 import React from 'react';
 import Card from '../components/Card';
 import ErrorBanner from '../components/ErrorBanner';
+import MetricsChart from '../components/MetricsChart';
 import { useMetrics } from '../hooks/useMetrics';
 import { DateRange } from '../types';
+
+// Sample chart data for demonstration
+const sampleChartData = [
+  { date: '2024-01-01', value: 4200 },
+  { date: '2024-01-08', value: 4800 },
+  { date: '2024-01-15', value: 5100 },
+  { date: '2024-01-22', value: 4900 },
+  { date: '2024-01-29', value: 5500 },
+  { date: '2024-02-05', value: 6200 },
+  { date: '2024-02-12', value: 5800 },
+  { date: '2024-02-19', value: 6500 },
+  { date: '2024-02-26', value: 7100 },
+  { date: '2024-03-04', value: 6800 },
+];
 
 interface OverviewProps {
   dateRange: DateRange;
@@ -51,6 +66,14 @@ const Overview: React.FC<OverviewProps> = ({ dateRange }) => {
           ))
         ) : null}
       </div>
+
+      {/* Sample Interactive Chart */}
+      <MetricsChart
+        data={sampleChartData}
+        title="Performance Trend"
+        color="#4caf50"
+        height={300}
+      />
     </div>
   );
 };
