@@ -7,6 +7,48 @@ on:
     branches: [main]
 
 jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend dependencies
+        run: cd backend && npm ci
+
+      - name: Install frontend dependencies
+        run: cd react-app && npm ci
+
+      - name: Run npm audit (backend)
+        run: cd backend && npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run npm audit (frontend)
+        run: cd react-app && npm audit --audit-level=high
+        continue-on-error: true
+
+  codeql-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
   test-backend:
     runs-on: ubuntu-latest
     services:
