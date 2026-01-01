@@ -15,7 +15,9 @@ import { swaggerSpec } from './config/swagger';
 import { initRedis } from './config/redis';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
+import prometheusMetricsRoutes from './routes/metrics-prom';
 import exportRoutes from './routes/export';
+import { metricsMiddleware } from './middleware/metrics';
 import importRoutes from './routes/import';
 import passwordResetRoutes from './routes/passwordReset';
 import adminRoutes from './routes/admin';
@@ -64,6 +66,9 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
+// Prometheus metrics middleware - must be early to capture all requests
+app.use(metricsMiddleware);
+
 // Request logging middleware
 app.use(requestLogger);
 
@@ -86,6 +91,9 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Health check endpoints
 app.use('/api/health', healthRoutes);
+
+// Prometheus metrics endpoint (for scraping)
+app.use('/metrics', prometheusMetricsRoutes);
 
 // Routes
 app.use('/api/auth', authRoutes);
