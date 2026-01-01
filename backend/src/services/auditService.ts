@@ -39,7 +39,7 @@ export const auditService = {
     const offset = (page - 1) * limit;
 
     let whereClause = '';
-    const params: any[] = [];
+    const params: (string | number | null)[] = [];
 
     if (userId) {
       params.push(userId);

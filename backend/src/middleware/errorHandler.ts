@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ApiResponse } from '../types';
 import logger from '../config/logger';
 
@@ -97,7 +97,13 @@ export const errorHandler = (
 };
 
 // Async handler wrapper to catch async errors
-export const asyncHandler = (fn: Function) => {
+type AsyncRequestHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<unknown>;
+
+export const asyncHandler = (fn: AsyncRequestHandler): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
