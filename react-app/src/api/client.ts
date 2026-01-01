@@ -2,7 +2,7 @@ import { ApiResponse, AuthTokens } from '../types';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-// Token management
+// Token management - access token is kept in memory for security
 let accessToken: string | null = null;
 
 export const setAccessToken = (token: string | null) => {
@@ -11,16 +11,17 @@ export const setAccessToken = (token: string | null) => {
 
 export const getAccessToken = () => accessToken;
 
+// Refresh token is now stored in httpOnly cookie, managed by the server
+// These functions are kept for backward compatibility but are no-ops
 export const getRefreshToken = (): string | null => {
-  return localStorage.getItem('refreshToken');
+  // Refresh token is now stored in httpOnly cookie
+  // Return null as we can't access it from JavaScript (which is the security benefit)
+  return null;
 };
 
-export const setRefreshToken = (token: string | null) => {
-  if (token) {
-    localStorage.setItem('refreshToken', token);
-  } else {
-    localStorage.removeItem('refreshToken');
-  }
+export const setRefreshToken = (_token: string | null) => {
+  // No-op: refresh token is now stored in httpOnly cookie by the server
+  // This function is kept for backward compatibility during transition
 };
 
 // Refresh token logic
@@ -37,28 +38,23 @@ const onTokenRefreshed = (token: string) => {
 };
 
 const refreshAccessToken = async (): Promise<string> => {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
-
+  // Refresh token is sent automatically via httpOnly cookie
   const response = await fetch(`${API_URL}/api/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    credentials: 'include', // Include cookies in the request
   });
 
   if (!response.ok) {
-    // Clear tokens on refresh failure
+    // Clear access token on refresh failure
     setAccessToken(null);
-    setRefreshToken(null);
     throw new Error('Token refresh failed');
   }
 
   const data: ApiResponse<AuthTokens> = await response.json();
   if (data.success && data.data) {
     setAccessToken(data.data.accessToken);
-    setRefreshToken(data.data.refreshToken);
+    // Refresh token is set via httpOnly cookie by the server
     return data.data.accessToken;
   }
 
@@ -91,6 +87,7 @@ export async function apiRequest<T>(
   let response = await fetch(`${API_URL}${endpoint}`, {
     method,
     headers: requestHeaders,
+    credentials: 'include', // Include cookies (for httpOnly refresh token)
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -108,6 +105,7 @@ export async function apiRequest<T>(
         response = await fetch(`${API_URL}${endpoint}`, {
           method,
           headers: requestHeaders,
+          credentials: 'include', // Include cookies (for httpOnly refresh token)
           body: body ? JSON.stringify(body) : undefined,
         });
       } catch (error) {
@@ -125,6 +123,7 @@ export async function apiRequest<T>(
             const retryResponse = await fetch(`${API_URL}${endpoint}`, {
               method,
               headers: requestHeaders,
+              credentials: 'include', // Include cookies (for httpOnly refresh token)
               body: body ? JSON.stringify(body) : undefined,
             });
             const data = await retryResponse.json();
@@ -169,6 +168,7 @@ export const downloadFile = async (
   const response = await fetch(`${API_URL}${endpoint}`, {
     method: 'GET',
     headers: requestHeaders,
+    credentials: 'include', // Include cookies (for httpOnly refresh token)
   });
 
   if (!response.ok) {

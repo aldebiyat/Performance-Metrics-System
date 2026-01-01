@@ -9,6 +9,25 @@ import { validate, registerSchema, loginSchema, refreshTokenSchema } from '../va
 
 const router = Router();
 
+// Cookie options for refresh token
+const REFRESH_TOKEN_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: '/api/auth',
+};
+
+// Helper function to set refresh token cookie
+const setRefreshTokenCookie = (res: Response, refreshToken: string) => {
+  res.cookie('refreshToken', refreshToken, REFRESH_TOKEN_COOKIE_OPTIONS);
+};
+
+// Helper function to clear refresh token cookie
+const clearRefreshTokenCookie = (res: Response) => {
+  res.clearCookie('refreshToken', { path: '/api/auth' });
+};
+
 /**
  * @swagger
  * /api/auth/register:
@@ -83,6 +102,9 @@ router.post(
       ipAddress: req.ip || req.socket.remoteAddress,
       userAgent: req.get('user-agent'),
     });
+
+    // Set refresh token as httpOnly cookie
+    setRefreshTokenCookie(res, tokens.refreshToken);
 
     const response: ApiResponse<typeof user & { tokens: typeof tokens }> = {
       success: true,
@@ -163,6 +185,9 @@ router.post(
       userAgent: req.get('user-agent'),
     });
 
+    // Set refresh token as httpOnly cookie
+    setRefreshTokenCookie(res, tokens.refreshToken);
+
     const response: ApiResponse<typeof user & { tokens: typeof tokens }> = {
       success: true,
       data: { ...user, tokens },
@@ -214,11 +239,18 @@ router.post(
 router.post(
   '/refresh',
   authLimiter,
-  validate(refreshTokenSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { refreshToken } = req.body;
+    // Accept refresh token from cookie OR body for backward compatibility
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+
+    if (!refreshToken) {
+      throw Errors.badRequest('Refresh token is required');
+    }
 
     const tokens = await authService.refreshTokens(refreshToken);
+
+    // Set new refresh token as httpOnly cookie
+    setRefreshTokenCookie(res, tokens.refreshToken);
 
     const response: ApiResponse<typeof tokens> = {
       success: true,
@@ -264,9 +296,9 @@ router.post(
  */
 router.post(
   '/logout',
-  validate(refreshTokenSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { refreshToken } = req.body;
+    // Accept refresh token from cookie OR body for backward compatibility
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     let userId: number | undefined;
     if (refreshToken) {
@@ -278,6 +310,9 @@ router.post(
       }
       await authService.logout(refreshToken);
     }
+
+    // Clear the refresh token cookie
+    clearRefreshTokenCookie(res);
 
     if (userId) {
       await auditService.log({
@@ -384,6 +419,9 @@ router.post(
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     await authService.logoutAll(req.user!.userId);
+
+    // Clear the refresh token cookie
+    clearRefreshTokenCookie(res);
 
     const response: ApiResponse<{ message: string }> = {
       success: true,

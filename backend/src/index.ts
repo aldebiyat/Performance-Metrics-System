@@ -3,6 +3,7 @@ import express from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import { runMigrations } from './utils/seedData';
@@ -61,6 +62,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logging middleware
 app.use(requestLogger);

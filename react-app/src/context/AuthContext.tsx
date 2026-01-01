@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, AuthContextType, AuthTokens } from '../types';
-import { api, setAccessToken, setRefreshToken, getRefreshToken } from '../api/client';
+import { api, setAccessToken } from '../api/client';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -21,48 +21,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const logout = useCallback(async () => {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      try {
-        await api.post('/api/auth/logout', { refreshToken }, false);
-      } catch {
-        // Ignore logout errors
-      }
+    try {
+      // Refresh token is sent automatically via httpOnly cookie
+      await api.post('/api/auth/logout', {}, false);
+    } catch {
+      // Ignore logout errors
     }
     setAccessToken(null);
-    setRefreshToken(null);
     setUser(null);
   }, []);
 
   // Check for existing session on mount
   useEffect(() => {
     const initAuth = async () => {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
-        // Try to refresh the token
-        const response = await api.post<AuthTokens>('/api/auth/refresh', { refreshToken }, false);
+        // Try to refresh the token - refresh token is sent via httpOnly cookie
+        const response = await api.post<AuthTokens>('/api/auth/refresh', {}, false);
 
         if (response.success && response.data) {
           setAccessToken(response.data.accessToken);
-          setRefreshToken(response.data.refreshToken);
 
           // Fetch user data
           const userResponse = await api.get<User>('/api/auth/me');
           if (userResponse.success && userResponse.data) {
             setUser(userResponse.data);
           }
-        } else {
-          // Token refresh failed, clear tokens
-          setRefreshToken(null);
         }
+        // If refresh fails, user simply remains logged out (no token in cookie)
       } catch (error) {
+        // Auth initialization failed - user is not logged in
         console.error('Auth initialization failed:', error);
-        setRefreshToken(null);
       } finally {
         setIsLoading(false);
       }
@@ -74,7 +62,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const handleLogout = () => {
       setUser(null);
       setAccessToken(null);
-      setRefreshToken(null);
     };
 
     window.addEventListener('auth:logout', handleLogout);
@@ -94,7 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const { tokens, ...userData } = response.data;
     setAccessToken(tokens.accessToken);
-    setRefreshToken(tokens.refreshToken);
+    // Refresh token is set via httpOnly cookie by the server
     setUser(userData as User);
   };
 
@@ -111,7 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const { tokens, ...userData } = response.data;
     setAccessToken(tokens.accessToken);
-    setRefreshToken(tokens.refreshToken);
+    // Refresh token is set via httpOnly cookie by the server
     setUser(userData as User);
   };
 
