@@ -19,6 +19,7 @@ import importRoutes from './routes/import';
 import passwordResetRoutes from './routes/passwordReset';
 import adminRoutes from './routes/admin';
 import organizationRoutes from './routes/organizations';
+import healthRoutes from './routes/health';
 
 // Load environment variables
 dotenv.config();
@@ -81,10 +82,8 @@ app.use('/api', apiLimiter);
 // Swagger API documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// Health check endpoints
+app.use('/api/health', healthRoutes);
 
 // Routes
 app.use('/api/auth', authRoutes);
