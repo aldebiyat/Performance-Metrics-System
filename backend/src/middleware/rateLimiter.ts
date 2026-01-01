@@ -2,6 +2,7 @@ import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { createClient } from 'redis';
 import logger from '../config/logger';
+import { config } from '../config/constants';
 
 // Create Redis client for rate limiting (optional, falls back to memory)
 let redisClient: ReturnType<typeof createClient> | null = null;
@@ -39,20 +40,20 @@ const getStore = () => {
   return undefined; // Use default memory store
 };
 
-// General API rate limit - 100 requests per minute
+// General API rate limit - configurable requests per window
 export const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100,
+  windowMs: config.rateLimit.api.windowMs,
+  max: config.rateLimit.api.max,
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
   standardHeaders: true,
   legacyHeaders: false,
   store: getStore(),
 });
 
-// Strict rate limit for auth endpoints - 5 attempts per minute
+// Strict rate limit for auth endpoints - configurable attempts per window
 export const authLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5,
+  windowMs: config.rateLimit.auth.windowMs,
+  max: config.rateLimit.auth.max,
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many login attempts, please try again later' } },
   standardHeaders: true,
   legacyHeaders: false,
@@ -60,10 +61,10 @@ export const authLimiter = rateLimit({
   skipSuccessfulRequests: true, // Only count failed attempts
 });
 
-// Password reset - 3 attempts per hour
+// Password reset - configurable attempts per window
 export const passwordResetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3,
+  windowMs: config.rateLimit.passwordReset.windowMs,
+  max: config.rateLimit.passwordReset.max,
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many password reset requests' } },
   standardHeaders: true,
   legacyHeaders: false,

@@ -1,12 +1,11 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { query } from '../config/database';
+import { config } from '../config/constants';
 import { User, AuthTokens, TokenPayload } from '../types';
 import { generateAccessToken, generateRefreshToken, verifyToken } from '../middleware/auth';
 import { Errors } from '../middleware/errorHandler';
 import { emailService } from './emailService';
-
-const SALT_ROUNDS = 12;
 
 export const authService = {
   async register(email: string, password: string, name?: string): Promise<{ user: Omit<User, 'password_hash'>; tokens: AuthTokens }> {
@@ -26,13 +25,13 @@ export const authService = {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(password, config.saltRounds);
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
     const verificationTokenExpires = new Date();
-    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24); // 24 hours expiry
+    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + config.verificationTokenHours);
 
     // Insert user with verification token
     const result = await query(
@@ -164,7 +163,7 @@ export const authService = {
     // Store refresh token hash
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    expiresAt.setDate(expiresAt.getDate() + config.refreshTokenDays);
 
     await query(
       'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
@@ -253,7 +252,7 @@ export const authService = {
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
     const verificationTokenExpires = new Date();
-    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24); // 24 hours expiry
+    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + config.verificationTokenHours);
 
     // Update user with new verification token
     await query(
