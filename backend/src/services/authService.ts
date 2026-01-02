@@ -21,8 +21,8 @@ export const authService = {
     }
 
     // Validate password strength (outside transaction)
-    if (password.length < 8) {
-      throw Errors.validation('Password must be at least 8 characters');
+    if (password.length < 12) {
+      throw Errors.validation('Password must be at least 12 characters');
     }
 
     // Hash password (outside transaction)

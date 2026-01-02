@@ -109,7 +109,7 @@ describe('Auth Service', () => {
 
     it('should throw validation error for weak password', async () => {
       const email = 'test@example.com';
-      const password = 'short'; // Less than 8 characters
+      const password = 'short'; // Less than 12 characters
 
       // Mock: no existing user
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
@@ -120,7 +120,7 @@ describe('Auth Service', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).statusCode).toBe(422);
-        expect((error as AppError).message).toBe('Password must be at least 8 characters');
+        expect((error as AppError).message).toBe('Password must be at least 12 characters');
       }
     });
   });

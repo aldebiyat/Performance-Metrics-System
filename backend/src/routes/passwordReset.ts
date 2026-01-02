@@ -25,11 +25,15 @@ const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token is required'),
   password: z
     .string()
-    .min(8, 'Password must be at least 8 characters')
+    .min(12, 'Password must be at least 12 characters')
     .max(128, 'Password must be at most 128 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(
+      /[!@#$%^&*(),.?":{}|<>]/,
+      'Password must contain at least one special character (!@#$%^&*(),.?":{}|<>)'
+    ),
 });
 
 /**
@@ -145,8 +149,8 @@ router.post(
  *                 description: Password reset token from email
  *               password:
  *                 type: string
- *                 minLength: 8
- *                 description: New password (minimum 8 characters)
+ *                 minLength: 12
+ *                 description: New password (minimum 12 characters, must include uppercase, lowercase, number, and special character)
  *     responses:
  *       200:
  *         description: Password reset successfully
