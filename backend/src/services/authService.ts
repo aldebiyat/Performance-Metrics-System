@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { query, withTransaction, createTransactionalQuery } from '../config/database';
 import { config } from '../config/constants';
 import { User, AuthTokens, TokenPayload } from '../types';
-import { generateAccessToken, generateRefreshToken, verifyToken } from '../middleware/auth';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../middleware/auth';
 import { Errors } from '../middleware/errorHandler';
 import { emailService } from './emailService';
 
@@ -134,7 +134,7 @@ export const authService = {
     // Verify the refresh token
     let decoded: TokenPayload;
     try {
-      decoded = verifyToken(refreshToken);
+      decoded = verifyRefreshToken(refreshToken);
     } catch {
       throw Errors.unauthorized('Invalid refresh token');
     }

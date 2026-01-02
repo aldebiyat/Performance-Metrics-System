@@ -4,6 +4,8 @@ import {
   generateAccessToken,
   generateRefreshToken,
   verifyToken,
+  verifyAccessToken,
+  verifyRefreshToken,
   authenticate,
   optionalAuth,
   authorize,
@@ -305,6 +307,69 @@ describe('Auth Middleware', () => {
       authorizeMiddleware(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalled();
+    });
+  });
+
+  describe('Token Secret Separation', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = {
+        ...originalEnv,
+        JWT_SECRET: 'access-secret-key-for-testing',
+        JWT_REFRESH_SECRET: 'refresh-secret-key-for-testing'
+      };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it('should use different secrets for access and refresh tokens', () => {
+      const payload = { userId: 1, email: 'test@example.com', role: 'viewer' };
+
+      const accessToken = generateAccessToken(payload);
+      const refreshToken = generateRefreshToken(payload);
+
+      // Tokens should be different (different secrets produce different signatures)
+      expect(accessToken).not.toBe(refreshToken);
+
+      // Access token should verify with access secret
+      expect(() => verifyAccessToken(accessToken)).not.toThrow();
+
+      // Refresh token should verify with refresh secret
+      expect(() => verifyRefreshToken(refreshToken)).not.toThrow();
+
+      // Cross-verification should fail
+      expect(() => verifyRefreshToken(accessToken)).toThrow();
+      expect(() => verifyAccessToken(refreshToken)).toThrow();
+    });
+
+    it('should use explicit HS256 algorithm', () => {
+      const payload = { userId: 1, email: 'test@example.com', role: 'viewer' };
+
+      const accessToken = generateAccessToken(payload);
+      const refreshToken = generateRefreshToken(payload);
+
+      // Decode tokens to check the header
+      const accessHeader = JSON.parse(Buffer.from(accessToken.split('.')[0], 'base64').toString());
+      const refreshHeader = JSON.parse(Buffer.from(refreshToken.split('.')[0], 'base64').toString());
+
+      expect(accessHeader.alg).toBe('HS256');
+      expect(refreshHeader.alg).toBe('HS256');
+    });
+
+    it('verifyToken should be alias for verifyAccessToken', () => {
+      const payload = { userId: 1, email: 'test@example.com', role: 'viewer' };
+      const accessToken = generateAccessToken(payload);
+
+      // Both should work the same way
+      const decoded1 = verifyToken(accessToken);
+      const decoded2 = verifyAccessToken(accessToken);
+
+      expect(decoded1.userId).toBe(decoded2.userId);
+      expect(decoded1.email).toBe(decoded2.email);
+      expect(decoded1.role).toBe(decoded2.role);
     });
   });
 });

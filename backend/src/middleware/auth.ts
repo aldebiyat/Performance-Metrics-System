@@ -20,19 +20,44 @@ const getJwtSecret = (): string => {
   return secret;
 };
 
+const getJwtRefreshSecret = (): string => {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) {
+    // Fall back to JWT_SECRET if JWT_REFRESH_SECRET not set (backward compatibility)
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('WARNING: JWT_REFRESH_SECRET not set, using JWT_SECRET for refresh tokens. This is insecure.');
+    }
+    return getJwtSecret();
+  }
+  return secret;
+};
+
 export const generateAccessToken = (payload: TokenPayload): string => {
   const expiresIn = process.env.JWT_ACCESS_EXPIRY || '15m';
-  return jwt.sign(payload, getJwtSecret(), { expiresIn } as jwt.SignOptions);
+  return jwt.sign(payload, getJwtSecret(), {
+    expiresIn,
+    algorithm: 'HS256'
+  } as jwt.SignOptions);
 };
 
 export const generateRefreshToken = (payload: TokenPayload): string => {
   const expiresIn = process.env.JWT_REFRESH_EXPIRY || '7d';
-  return jwt.sign(payload, getJwtSecret(), { expiresIn } as jwt.SignOptions);
+  return jwt.sign(payload, getJwtRefreshSecret(), {
+    expiresIn,
+    algorithm: 'HS256'
+  } as jwt.SignOptions);
 };
 
-export const verifyToken = (token: string): TokenPayload => {
-  return jwt.verify(token, getJwtSecret()) as TokenPayload;
+export const verifyAccessToken = (token: string): TokenPayload => {
+  return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as TokenPayload;
 };
+
+export const verifyRefreshToken = (token: string): TokenPayload => {
+  return jwt.verify(token, getJwtRefreshSecret(), { algorithms: ['HS256'] }) as TokenPayload;
+};
+
+// Keep verifyToken for backward compatibility (uses access token secret)
+export const verifyToken = verifyAccessToken;
 
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
