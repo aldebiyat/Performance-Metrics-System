@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { Readable } from 'stream';
 import { metricsService } from './metricsService';
 import { DateRange, CategoryWithMetrics } from '../types';
+import { sanitizeForCSV } from '../utils/csvSanitizer';
 
 export const exportService = {
   async generateCSV(
@@ -24,8 +25,8 @@ export const exportService = {
     for (const category of data) {
       for (const metric of category.metrics) {
         const row = [
-          `"${category.category.name}"`,
-          `"${metric.name}"`,
+          sanitizeForCSV(category.category.name),
+          sanitizeForCSV(metric.name),
           metric.count.toString(),
           metric.weekOverWeekChange !== null ? `${metric.weekOverWeekChange}%` : '',
           metric.percentile !== null ? `${metric.percentile}th` : '',
