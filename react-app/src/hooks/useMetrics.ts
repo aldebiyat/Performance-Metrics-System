@@ -6,29 +6,36 @@ interface UseMetricsOptions {
   category: string;
   range?: DateRange;
   pollingInterval?: number; // in milliseconds, 0 to disable
+  maxRetries?: number; // max consecutive errors before pausing polling
 }
 
 interface UseMetricsReturn {
   data: CategoryWithMetrics | null;
   isLoading: boolean;
   error: string | null;
-  refetch: () => Promise<void>;
+  refetch: () => Promise<boolean>;
   lastUpdated: Date | null;
+  isPollingPaused: boolean;
+  resumePolling: () => void;
 }
 
 export const useMetrics = ({
   category,
   range = '30d',
   pollingInterval = 30000, // 30 seconds default
+  maxRetries = 3, // default max consecutive errors before pausing
 }: UseMetricsOptions): UseMetricsReturn => {
   const [data, setData] = useState<CategoryWithMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const [isPollingPaused, setIsPollingPaused] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isVisibleRef = useRef(true);
+  const consecutiveErrorsRef = useRef(0);
+  const currentBackoffRef = useRef(pollingInterval);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<boolean> => {
     try {
       setError(null);
       const response: ApiResponse<CategoryWithMetrics> = await api.get(
@@ -38,33 +45,79 @@ export const useMetrics = ({
       if (response.success && response.data) {
         setData(response.data);
         setLastUpdated(new Date());
+        // Reset error count on success
+        consecutiveErrorsRef.current = 0;
+        currentBackoffRef.current = pollingInterval;
+        return true;
       } else {
         setError(response.error?.message || 'Failed to fetch metrics');
+        consecutiveErrorsRef.current += 1;
+        return false;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+      consecutiveErrorsRef.current += 1;
+      return false;
     } finally {
       setIsLoading(false);
     }
-  }, [category, range]);
+  }, [category, range, pollingInterval]);
 
-  // Initial fetch
+  // Schedule next poll with exponential backoff
+  const scheduleNextPoll = useCallback(() => {
+    if (pollingInterval <= 0 || isPollingPaused) return;
+
+    // Check if we've exceeded max retries
+    if (consecutiveErrorsRef.current >= maxRetries) {
+      setIsPollingPaused(true);
+      return;
+    }
+
+    // Apply exponential backoff on errors
+    const delay = consecutiveErrorsRef.current > 0
+      ? pollingInterval * Math.pow(2, consecutiveErrorsRef.current)
+      : pollingInterval;
+
+    currentBackoffRef.current = delay;
+
+    pollingRef.current = setTimeout(async () => {
+      if (isVisibleRef.current && !isPollingPaused) {
+        await fetchData();
+        scheduleNextPoll();
+      }
+    }, delay);
+  }, [fetchData, pollingInterval, maxRetries, isPollingPaused]);
+
+  // Resume polling function
+  const resumePolling = useCallback(() => {
+    consecutiveErrorsRef.current = 0;
+    currentBackoffRef.current = pollingInterval;
+    setIsPollingPaused(false);
+  }, [pollingInterval]);
+
+  // Initial fetch and start polling
   useEffect(() => {
-    setIsLoading(true);
-    fetchData();
-  }, [fetchData]);
+    let isMounted = true;
 
-  // Polling logic
+    const init = async () => {
+      setIsLoading(true);
+      await fetchData();
+      // Only schedule next poll if component is still mounted and polling is enabled
+      if (isMounted && pollingInterval > 0 && !isPollingPaused) {
+        scheduleNextPoll();
+      }
+    };
+
+    init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchData, pollingInterval, scheduleNextPoll, isPollingPaused]);
+
+  // Visibility change handler
   useEffect(() => {
     if (pollingInterval <= 0) return;
-
-    const startPolling = () => {
-      pollingRef.current = setInterval(() => {
-        if (isVisibleRef.current) {
-          fetchData();
-        }
-      }, pollingInterval);
-    };
 
     const handleVisibilityChange = () => {
       isVisibleRef.current = !document.hidden;
@@ -72,26 +125,28 @@ export const useMetrics = ({
       if (document.hidden) {
         // Stop polling when tab is hidden
         if (pollingRef.current) {
-          clearInterval(pollingRef.current);
+          clearTimeout(pollingRef.current);
           pollingRef.current = null;
         }
-      } else {
+      } else if (!isPollingPaused) {
         // Resume polling and fetch immediately when tab becomes visible
-        fetchData();
-        startPolling();
+        fetchData().then(() => {
+          if (!isPollingPaused) {
+            scheduleNextPoll();
+          }
+        });
       }
     };
 
-    startPolling();
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (pollingRef.current) {
-        clearInterval(pollingRef.current);
+        clearTimeout(pollingRef.current);
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchData, pollingInterval]);
+  }, [fetchData, pollingInterval, scheduleNextPoll, isPollingPaused]);
 
   return {
     data,
@@ -99,6 +154,8 @@ export const useMetrics = ({
     error,
     refetch: fetchData,
     lastUpdated,
+    isPollingPaused,
+    resumePolling,
   };
 };
 
