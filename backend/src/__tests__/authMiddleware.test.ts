@@ -32,7 +32,6 @@ describe('Auth Middleware', () => {
     it('should return a valid JWT string', () => {
       const payload = {
         userId: 1,
-        email: 'test@example.com',
         role: 'viewer',
       };
 
@@ -45,15 +44,13 @@ describe('Auth Middleware', () => {
     it('should generate token with correct payload', () => {
       const payload = {
         userId: 123,
-        email: 'admin@example.com',
         role: 'admin',
       };
 
       const token = generateAccessToken(payload);
-      const decoded = jwt.decode(token) as { userId: number; email: string; role: string };
+      const decoded = jwt.decode(token) as { userId: number; role: string };
 
       expect(decoded.userId).toBe(payload.userId);
-      expect(decoded.email).toBe(payload.email);
       expect(decoded.role).toBe(payload.role);
     });
   });
@@ -62,7 +59,6 @@ describe('Auth Middleware', () => {
     it('should return a valid JWT string', () => {
       const payload = {
         userId: 1,
-        email: 'test@example.com',
         role: 'viewer',
       };
 
@@ -77,7 +73,6 @@ describe('Auth Middleware', () => {
     it('should decode a valid token', () => {
       const payload = {
         userId: 42,
-        email: 'user@example.com',
         role: 'editor',
       };
 
@@ -85,7 +80,6 @@ describe('Auth Middleware', () => {
       const decoded = verifyToken(token);
 
       expect(decoded.userId).toBe(payload.userId);
-      expect(decoded.email).toBe(payload.email);
       expect(decoded.role).toBe(payload.role);
     });
 
@@ -98,7 +92,6 @@ describe('Auth Middleware', () => {
     it('should throw on tampered token', () => {
       const payload = {
         userId: 1,
-        email: 'test@example.com',
         role: 'viewer',
       };
 
@@ -169,7 +162,6 @@ describe('Auth Middleware', () => {
     it('should set user on request with valid token', async () => {
       const payload = {
         userId: 100,
-        email: 'authenticated@example.com',
         role: 'admin',
       };
 
@@ -182,7 +174,6 @@ describe('Auth Middleware', () => {
 
       expect(mockRequest.user).toBeDefined();
       expect(mockRequest.user?.userId).toBe(payload.userId);
-      expect(mockRequest.user?.email).toBe(payload.email);
       expect(mockRequest.user?.role).toBe(payload.role);
       expect(mockNext).toHaveBeenCalled();
     });
@@ -201,7 +192,6 @@ describe('Auth Middleware', () => {
     it('should set user when valid token provided', () => {
       const payload = {
         userId: 50,
-        email: 'optional@example.com',
         role: 'viewer',
       };
 
@@ -251,7 +241,6 @@ describe('Auth Middleware', () => {
     it('should throw if role not in allowed roles', () => {
       mockRequest.user = {
         userId: 1,
-        email: 'viewer@example.com',
         role: 'viewer',
       };
 
@@ -273,7 +262,6 @@ describe('Auth Middleware', () => {
     it('should call next if role is allowed', () => {
       mockRequest.user = {
         userId: 1,
-        email: 'admin@example.com',
         role: 'admin',
       };
 
@@ -286,7 +274,6 @@ describe('Auth Middleware', () => {
     it('should work with single role', () => {
       mockRequest.user = {
         userId: 1,
-        email: 'editor@example.com',
         role: 'editor',
       };
 
@@ -299,7 +286,6 @@ describe('Auth Middleware', () => {
     it('should work with multiple allowed roles', () => {
       mockRequest.user = {
         userId: 1,
-        email: 'viewer@example.com',
         role: 'viewer',
       };
 
@@ -326,7 +312,7 @@ describe('Auth Middleware', () => {
     });
 
     it('should use different secrets for access and refresh tokens', () => {
-      const payload = { userId: 1, email: 'test@example.com', role: 'viewer' };
+      const payload = { userId: 1, role: 'viewer' };
 
       const accessToken = generateAccessToken(payload);
       const refreshToken = generateRefreshToken(payload);
@@ -346,7 +332,7 @@ describe('Auth Middleware', () => {
     });
 
     it('should use explicit HS256 algorithm', () => {
-      const payload = { userId: 1, email: 'test@example.com', role: 'viewer' };
+      const payload = { userId: 1, role: 'viewer' };
 
       const accessToken = generateAccessToken(payload);
       const refreshToken = generateRefreshToken(payload);
@@ -360,7 +346,7 @@ describe('Auth Middleware', () => {
     });
 
     it('verifyToken should be alias for verifyAccessToken', () => {
-      const payload = { userId: 1, email: 'test@example.com', role: 'viewer' };
+      const payload = { userId: 1, role: 'viewer' };
       const accessToken = generateAccessToken(payload);
 
       // Both should work the same way
@@ -368,7 +354,6 @@ describe('Auth Middleware', () => {
       const decoded2 = verifyAccessToken(accessToken);
 
       expect(decoded1.userId).toBe(decoded2.userId);
-      expect(decoded1.email).toBe(decoded2.email);
       expect(decoded1.role).toBe(decoded2.role);
     });
   });

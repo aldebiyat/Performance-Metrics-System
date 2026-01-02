@@ -51,7 +51,6 @@ export const authService = {
       // Generate tokens
       const tokenPayload: TokenPayload = {
         userId: newUser.id,
-        email: newUser.email,
         role: newUser.role,
       };
 
@@ -134,7 +133,6 @@ export const authService = {
     // Generate tokens
     const tokenPayload: TokenPayload = {
       userId: user.id,
-      email: user.email,
       role: user.role,
     };
 
@@ -183,7 +181,6 @@ export const authService = {
     // Create new tokens
     const tokenPayload: TokenPayload = {
       userId: user.user_id,
-      email: user.email,
       role: user.role,
     };
 

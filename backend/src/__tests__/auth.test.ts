@@ -332,7 +332,6 @@ describe('Auth Service', () => {
     it('should generate and verify valid access token', () => {
       const payload = {
         userId: 1,
-        email: 'test@example.com',
         role: 'viewer',
       };
 
@@ -342,7 +341,6 @@ describe('Auth Service', () => {
 
       const decoded = verifyToken(token);
       expect(decoded.userId).toBe(payload.userId);
-      expect(decoded.email).toBe(payload.email);
       expect(decoded.role).toBe(payload.role);
     });
 
@@ -355,7 +353,6 @@ describe('Auth Service', () => {
     it('should throw error for tampered token', () => {
       const payload = {
         userId: 1,
-        email: 'test@example.com',
         role: 'viewer',
       };
 
