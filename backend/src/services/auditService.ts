@@ -1,6 +1,9 @@
 import { query } from '../config/database';
 import logger from '../config/logger';
 
+let auditFailureCount = 0;
+const AUDIT_FAILURE_THRESHOLD = 5;
+
 interface AuditParams {
   userId?: number;
   action: string;
@@ -29,8 +32,16 @@ export const auditService = {
           params.userAgent || null,
         ]
       );
+      auditFailureCount = 0;
     } catch (error) {
-      logger.error('Failed to create audit log', { params, error });
+      auditFailureCount++;
+      logger.error('Failed to create audit log', { params, error, failureCount: auditFailureCount });
+      if (auditFailureCount >= AUDIT_FAILURE_THRESHOLD) {
+        logger.error('CRITICAL: Audit logging system failure threshold exceeded', {
+          consecutiveFailures: auditFailureCount,
+          threshold: AUDIT_FAILURE_THRESHOLD,
+        });
+      }
     }
   },
 
