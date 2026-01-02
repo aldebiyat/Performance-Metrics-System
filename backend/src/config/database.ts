@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import dotenv from 'dotenv';
+import logger from './logger';
 
 dotenv.config();
 
@@ -19,8 +20,18 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  logger.error('Unexpected database pool error', {
+    error: err.message,
+    stack: err.stack
+  });
+
+  // Only exit for fatal/unrecoverable errors
+  if (err.message.includes('Connection terminated') || err.message.includes('FATAL')) {
+    logger.error('Fatal database error - initiating graceful shutdown');
+    // Allow time for logging before exit
+    setTimeout(() => process.exit(1), 1000);
+  }
+  // For transient errors, the pool will attempt to recover
 });
 
 type QueryParam = string | number | boolean | null | Date | Buffer | object | unknown;
