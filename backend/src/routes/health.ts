@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import pool from '../config/database';
 import { getRedisClient } from '../config/redis';
 import { asyncHandler } from '../middleware/errorHandler';
+import logger from '../config/logger';
 
 const router = Router();
 
@@ -10,8 +11,8 @@ interface HealthStatus {
   timestamp: string;
   version: string;
   checks: {
-    database: { status: 'up' | 'down'; latency?: number; error?: string };
-    redis: { status: 'up' | 'down' | 'not_configured'; latency?: number; error?: string };
+    database: { status: 'up' | 'down'; latency?: number };
+    redis: { status: 'up' | 'down' | 'not_configured'; latency?: number };
   };
 }
 
@@ -32,10 +33,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     await pool.query('SELECT 1');
     health.checks.database = { status: 'up', latency: Date.now() - start };
   } catch (error) {
-    health.checks.database = {
-      status: 'down',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    health.checks.database = { status: 'down' };
+    logger.error('Health check database error:', error);
     health.status = 'unhealthy';
   }
 
@@ -47,10 +46,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       await redisClient.ping();
       health.checks.redis = { status: 'up', latency: Date.now() - start };
     } catch (error) {
-      health.checks.redis = {
-        status: 'down',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      health.checks.redis = { status: 'down' };
+      logger.error('Health check Redis error:', error);
       health.status = 'degraded';
     }
   }
