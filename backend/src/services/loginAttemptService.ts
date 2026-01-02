@@ -36,8 +36,8 @@ export const loginAttemptService = {
                 MAX(attempted_at) as last_attempt
          FROM login_attempts
          WHERE email = $1
-           AND attempted_at > NOW() - INTERVAL '${LOCKOUT_MINUTES} minutes'`,
-        [email.toLowerCase()]
+           AND attempted_at > NOW() - INTERVAL '1 minute' * $2`,
+        [email.toLowerCase(), LOCKOUT_MINUTES]
       );
 
       const attempts = parseInt(result.rows[0].attempt_count);
@@ -63,8 +63,8 @@ export const loginAttemptService = {
     try {
       const result = await query(
         `SELECT COUNT(*) as count FROM login_attempts
-         WHERE email = $1 AND attempted_at > NOW() - INTERVAL '${LOCKOUT_MINUTES} minutes'`,
-        [email.toLowerCase()]
+         WHERE email = $1 AND attempted_at > NOW() - INTERVAL '1 minute' * $2`,
+        [email.toLowerCase(), LOCKOUT_MINUTES]
       );
       return parseInt(result.rows[0].count);
     } catch (error) {
