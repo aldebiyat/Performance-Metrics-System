@@ -38,12 +38,16 @@ services:
     image: redis:7-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-pms}-redis
     restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-redis_dev_password}
+      --appendonly yes
     ports:
       - "${REDIS_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=${REDIS_PASSWORD:-redis_dev_password} redis-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -73,6 +77,7 @@ services:
       JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
       JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
       REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_password}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3201}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3201}
       SENTRY_DSN: ${SENTRY_DSN:-}

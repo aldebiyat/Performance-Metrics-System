@@ -7,14 +7,49 @@ let redisClient: RedisClientType | null = null;
 
 export const getRedisClient = (): RedisClientType | null => redisClient;
 
+/**
+ * Build Redis URL with password if provided
+ * If REDIS_PASSWORD is set and URL doesn't already contain a password, add it
+ */
+const buildRedisUrl = (): string | undefined => {
+  const baseUrl = process.env.REDIS_URL;
+  const password = process.env.REDIS_PASSWORD;
+
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  // If password is provided and URL doesn't already have one, add it
+  if (password) {
+    try {
+      const url = new URL(baseUrl);
+      // Only add password if not already present in URL
+      if (!url.password) {
+        url.password = password;
+        return url.toString();
+      }
+    } catch {
+      // If URL parsing fails, try simple string manipulation
+      // Handle redis://host:port format
+      if (baseUrl.startsWith('redis://') && !baseUrl.includes('@')) {
+        return baseUrl.replace('redis://', `redis://:${password}@`);
+      }
+    }
+  }
+
+  return baseUrl;
+};
+
 export const initRedis = async (): Promise<void> => {
-  if (!process.env.REDIS_URL) {
+  const redisUrl = buildRedisUrl();
+
+  if (!redisUrl) {
     logger.info('REDIS_URL not set, using memory cache');
     return;
   }
 
   try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
+    redisClient = createClient({ url: redisUrl });
 
     redisClient.on('error', (err) => {
       logger.error('Redis Client Error', { error: err.message });
