@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { TokenPayload } from '../types';
 import { Errors } from './errorHandler';
+import { tokenBlacklistService } from '../services/tokenBlacklistService';
 
 // Extend Express Request to include user
 declare global {
@@ -59,7 +61,7 @@ export const verifyRefreshToken = (token: string): TokenPayload => {
 // Keep verifyToken for backward compatibility (uses access token secret)
 export const verifyToken = verifyAccessToken;
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -70,9 +72,28 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 
   try {
     const decoded = verifyToken(token);
+
+    // Check if token is blacklisted (use hash of token for key)
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex').substring(0, 16);
+    const isBlacklisted = await tokenBlacklistService.isBlacklisted(tokenHash);
+    if (isBlacklisted) {
+      throw Errors.unauthorized('Token has been revoked');
+    }
+
+    // Check if user's tokens were invalidated after this token was issued
+    if (decoded.iat) {
+      const invalidatedAt = await tokenBlacklistService.getUserTokensInvalidatedAt(decoded.userId);
+      if (invalidatedAt && decoded.iat * 1000 < invalidatedAt) {
+        throw Errors.unauthorized('Token has been invalidated');
+      }
+    }
+
     req.user = decoded;
     next();
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Token has been')) {
+      throw error;
+    }
     throw Errors.unauthorized('Invalid or expired token');
   }
 };

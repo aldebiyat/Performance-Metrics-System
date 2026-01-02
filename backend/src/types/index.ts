@@ -94,6 +94,8 @@ export interface TokenPayload {
   userId: number;
   email: string;
   role: string;
+  iat?: number; // Issued at timestamp (added by JWT)
+  exp?: number; // Expiration timestamp (added by JWT)
 }
 
 export interface AuthTokens {

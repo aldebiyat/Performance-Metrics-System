@@ -114,15 +114,15 @@ describe('Auth Middleware', () => {
   });
 
   describe('authenticate middleware', () => {
-    it('should throw without authorization header', () => {
+    it('should throw without authorization header', async () => {
       mockRequest.headers = {};
 
-      expect(() =>
+      await expect(
         authenticate(mockRequest as Request, mockResponse as Response, mockNext)
-      ).toThrow(AppError);
+      ).rejects.toThrow(AppError);
 
       try {
-        authenticate(mockRequest as Request, mockResponse as Response, mockNext);
+        await authenticate(mockRequest as Request, mockResponse as Response, mockNext);
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).statusCode).toBe(401);
@@ -130,17 +130,17 @@ describe('Auth Middleware', () => {
       }
     });
 
-    it('should throw with invalid token format (no Bearer prefix)', () => {
+    it('should throw with invalid token format (no Bearer prefix)', async () => {
       mockRequest.headers = {
         authorization: 'InvalidPrefix sometoken',
       };
 
-      expect(() =>
+      await expect(
         authenticate(mockRequest as Request, mockResponse as Response, mockNext)
-      ).toThrow(AppError);
+      ).rejects.toThrow(AppError);
 
       try {
-        authenticate(mockRequest as Request, mockResponse as Response, mockNext);
+        await authenticate(mockRequest as Request, mockResponse as Response, mockNext);
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).statusCode).toBe(401);
@@ -148,17 +148,17 @@ describe('Auth Middleware', () => {
       }
     });
 
-    it('should throw with invalid token', () => {
+    it('should throw with invalid token', async () => {
       mockRequest.headers = {
         authorization: 'Bearer invalid.token.here',
       };
 
-      expect(() =>
+      await expect(
         authenticate(mockRequest as Request, mockResponse as Response, mockNext)
-      ).toThrow(AppError);
+      ).rejects.toThrow(AppError);
 
       try {
-        authenticate(mockRequest as Request, mockResponse as Response, mockNext);
+        await authenticate(mockRequest as Request, mockResponse as Response, mockNext);
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).statusCode).toBe(401);
@@ -166,7 +166,7 @@ describe('Auth Middleware', () => {
       }
     });
 
-    it('should set user on request with valid token', () => {
+    it('should set user on request with valid token', async () => {
       const payload = {
         userId: 100,
         email: 'authenticated@example.com',
@@ -178,7 +178,7 @@ describe('Auth Middleware', () => {
         authorization: `Bearer ${token}`,
       };
 
-      authenticate(mockRequest as Request, mockResponse as Response, mockNext);
+      await authenticate(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockRequest.user).toBeDefined();
       expect(mockRequest.user?.userId).toBe(payload.userId);
