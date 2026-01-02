@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -11,6 +12,19 @@ import {
   authorize,
 } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
+import { tokenBlacklistService } from '../services/tokenBlacklistService';
+
+// Mock the tokenBlacklistService
+jest.mock('../services/tokenBlacklistService', () => ({
+  tokenBlacklistService: {
+    isBlacklisted: jest.fn(),
+    getUserTokensInvalidatedAt: jest.fn(),
+    blacklist: jest.fn(),
+    invalidateUserTokens: jest.fn(),
+  },
+}));
+
+const mockedTokenBlacklistService = tokenBlacklistService as jest.Mocked<typeof tokenBlacklistService>;
 
 describe('Auth Middleware', () => {
   let mockRequest: Partial<Request>;
@@ -180,16 +194,25 @@ describe('Auth Middleware', () => {
   });
 
   describe('optionalAuth middleware', () => {
-    it('should call next without setting user when no token provided', () => {
+    beforeEach(() => {
+      // Reset mocks before each test
+      mockedTokenBlacklistService.isBlacklisted.mockReset();
+      mockedTokenBlacklistService.getUserTokensInvalidatedAt.mockReset();
+      // Default: no blacklist, no invalidation
+      mockedTokenBlacklistService.isBlacklisted.mockResolvedValue(false);
+      mockedTokenBlacklistService.getUserTokensInvalidatedAt.mockResolvedValue(null);
+    });
+
+    it('should call next without setting user when no token provided', async () => {
       mockRequest.headers = {};
 
-      optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
+      await optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockRequest.user).toBeUndefined();
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('should set user when valid token provided', () => {
+    it('should set user when valid non-blacklisted token provided', async () => {
       const payload = {
         userId: 50,
         role: 'viewer',
@@ -200,21 +223,90 @@ describe('Auth Middleware', () => {
         authorization: `Bearer ${token}`,
       };
 
-      optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
+      await optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockRequest.user).toBeDefined();
       expect(mockRequest.user?.userId).toBe(payload.userId);
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('should call next without setting user when invalid token provided', () => {
+    it('should call next without setting user when invalid token provided', async () => {
       mockRequest.headers = {
         authorization: 'Bearer invalid.token.here',
       };
 
-      optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
+      await optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockRequest.user).toBeUndefined();
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('should not set user when token is blacklisted', async () => {
+      const payload = {
+        userId: 50,
+        role: 'viewer',
+      };
+
+      const token = generateAccessToken(payload);
+      mockRequest.headers = {
+        authorization: `Bearer ${token}`,
+      };
+
+      // Mock the token as blacklisted
+      mockedTokenBlacklistService.isBlacklisted.mockResolvedValue(true);
+
+      await optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockRequest.user).toBeUndefined();
+      expect(mockNext).toHaveBeenCalled();
+      // Verify blacklist was checked with token hash
+      const expectedHash = crypto.createHash('sha256').update(token).digest('hex').substring(0, 16);
+      expect(mockedTokenBlacklistService.isBlacklisted).toHaveBeenCalledWith(expectedHash);
+    });
+
+    it('should not set user when user tokens have been invalidated', async () => {
+      const payload = {
+        userId: 50,
+        role: 'viewer',
+      };
+
+      const token = generateAccessToken(payload);
+      const decoded = jwt.decode(token) as { iat: number };
+      mockRequest.headers = {
+        authorization: `Bearer ${token}`,
+      };
+
+      // Mock user tokens invalidated after this token was issued
+      const invalidatedAt = (decoded.iat * 1000) + 1000; // 1 second after token issued
+      mockedTokenBlacklistService.getUserTokensInvalidatedAt.mockResolvedValue(invalidatedAt);
+
+      await optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockRequest.user).toBeUndefined();
+      expect(mockNext).toHaveBeenCalled();
+      expect(mockedTokenBlacklistService.getUserTokensInvalidatedAt).toHaveBeenCalledWith(payload.userId);
+    });
+
+    it('should set user when token was issued after invalidation', async () => {
+      const payload = {
+        userId: 50,
+        role: 'viewer',
+      };
+
+      const token = generateAccessToken(payload);
+      const decoded = jwt.decode(token) as { iat: number };
+      mockRequest.headers = {
+        authorization: `Bearer ${token}`,
+      };
+
+      // Mock user tokens invalidated before this token was issued
+      const invalidatedAt = (decoded.iat * 1000) - 1000; // 1 second before token issued
+      mockedTokenBlacklistService.getUserTokensInvalidatedAt.mockResolvedValue(invalidatedAt);
+
+      await optionalAuth(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockRequest.user).toBeDefined();
+      expect(mockRequest.user?.userId).toBe(payload.userId);
       expect(mockNext).toHaveBeenCalled();
     });
   });

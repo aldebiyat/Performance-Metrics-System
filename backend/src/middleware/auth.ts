@@ -114,13 +114,29 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 };
 
 // Optional authentication - sets user if token exists but doesn't fail
-export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     try {
       const decoded = verifyToken(token);
+
+      // Check if token is blacklisted
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex').substring(0, 16);
+      const isBlacklisted = await tokenBlacklistService.isBlacklisted(tokenHash);
+      if (isBlacklisted) {
+        return next(); // Don't set user for blacklisted tokens
+      }
+
+      // Check if user's tokens were invalidated
+      if (decoded.iat) {
+        const invalidatedAt = await tokenBlacklistService.getUserTokensInvalidatedAt(decoded.userId);
+        if (invalidatedAt && decoded.iat * 1000 < invalidatedAt) {
+          return next();
+        }
+      }
+
       req.user = decoded;
     } catch {
       // Ignore invalid tokens for optional auth
