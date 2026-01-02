@@ -26,19 +26,25 @@ export const tokenBlacklistService = {
 
   /**
    * Check if a token is blacklisted
+   * SECURITY: Fails closed - if we cannot verify, treat as blacklisted
    */
   async isBlacklisted(tokenId: string): Promise<boolean> {
     const redis = getRedisClient();
+
     if (!redis) {
-      return false; // Can't check without Redis
+      // FAIL-CLOSED: Cannot verify, treat as blacklisted
+      logger.warn('Token blacklist check failed: Redis unavailable - treating as blacklisted');
+      return true;
     }
 
     try {
-      const result = await redis.get(`${BLACKLIST_PREFIX}${tokenId}`);
+      const key = `${BLACKLIST_PREFIX}${tokenId}`;
+      const result = await redis.get(key);
       return result !== null;
     } catch (error) {
-      logger.error('Failed to check token blacklist', { error });
-      return false;
+      // FAIL-CLOSED: Error checking, treat as blacklisted
+      logger.error('Token blacklist check failed:', error);
+      return true;
     }
   },
 
