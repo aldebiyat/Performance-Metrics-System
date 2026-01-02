@@ -40,6 +40,30 @@ const verifySameOrganization = async (adminUserId: number, targetUserId: number)
   }
 };
 
+/**
+ * Check if this user is the last admin in the system
+ */
+const isLastAdmin = async (userId: number): Promise<boolean> => {
+  // Count all active admins
+  const result = await query(
+    `SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = true AND deleted_at IS NULL`,
+    []
+  );
+  const adminCount = parseInt(result.rows[0].count, 10);
+
+  // Check if target user is an admin
+  const userResult = await query(
+    'SELECT role FROM users WHERE id = $1',
+    [userId]
+  );
+
+  if (userResult.rows[0]?.role !== 'admin') {
+    return false; // Not an admin, so not the last admin
+  }
+
+  return adminCount <= 1;
+};
+
 // Apply authentication and admin check to all routes
 router.use(authenticate, requireAdmin);
 
@@ -338,6 +362,13 @@ router.put(
       throw Errors.badRequest('Invalid role. Must be admin, editor, or viewer');
     }
 
+    // Prevent demoting last admin
+    if (role && role !== 'admin') {
+      if (await isLastAdmin(id)) {
+        throw Errors.badRequest('Cannot change role: this is the last admin in the system');
+      }
+    }
+
     // Prevent admin from deactivating themselves
     if (id === req.user!.userId && is_active === false) {
       throw Errors.badRequest('Cannot deactivate your own account');
@@ -427,6 +458,11 @@ router.delete(
     // Prevent admin from deleting themselves
     if (id === req.user!.userId) {
       throw Errors.badRequest('Cannot delete your own account');
+    }
+
+    // Prevent deleting last admin
+    if (await isLastAdmin(id)) {
+      throw Errors.badRequest('Cannot delete: this is the last admin in the system');
     }
 
     // Get user info before delete for audit
