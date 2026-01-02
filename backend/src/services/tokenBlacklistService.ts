@@ -64,16 +64,26 @@ export const tokenBlacklistService = {
     }
   },
 
+  /**
+   * Get timestamp when user's tokens were invalidated
+   * SECURITY: Fails closed - if we cannot verify, treat all tokens as invalidated
+   */
   async getUserTokensInvalidatedAt(userId: number): Promise<number | null> {
     const redis = getRedisClient();
-    if (!redis) return null;
+
+    if (!redis) {
+      // FAIL-CLOSED: Cannot verify, treat all tokens as invalidated
+      logger.warn('User token invalidation check failed: Redis unavailable - treating as invalidated');
+      return Date.now();
+    }
 
     try {
       const timestamp = await redis.get(`${USER_INVALIDATED_PREFIX}${userId}`);
       return timestamp ? parseInt(timestamp) : null;
     } catch (error) {
-      logger.error('Failed to get user token invalidation time', { error });
-      return null;
+      // FAIL-CLOSED: Error checking, treat as invalidated
+      logger.error('User token invalidation check failed:', error);
+      return Date.now();
     }
   }
 };
