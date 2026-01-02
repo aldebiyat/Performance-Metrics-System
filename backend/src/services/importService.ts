@@ -1,6 +1,7 @@
 import { query, getClient } from '../config/database';
 import logger from '../config/logger';
 import { sanitizeForLog } from '../utils/logSanitizer';
+import { sanitizeInput } from '../utils/inputSanitizer';
 
 export interface ParsedRow {
   category: string;
@@ -61,10 +62,10 @@ export const parseCSV = (buffer: Buffer): ParsedRow[] => {
 
     if (values.length >= 4) {
       rows.push({
-        category: values[categoryIndex].trim(),
-        metric_name: values[metricNameIndex].trim(),
+        category: sanitizeInput(values[categoryIndex], 100),
+        metric_name: sanitizeInput(values[metricNameIndex], 255),
         value: parseFloat(values[valueIndex].trim()),
-        recorded_at: values[recordedAtIndex].trim(),
+        recorded_at: sanitizeInput(values[recordedAtIndex], 50),
       });
     }
   }
