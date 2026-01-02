@@ -191,10 +191,14 @@ async function startServer() {
     // Initialize Redis for rate limiting (optional)
     await initRateLimitRedis();
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`Server is running on http://localhost:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
+
+    // Set request timeouts for DoS protection
+    server.timeout = parseInt(process.env.SERVER_TIMEOUT_MS || '120000', 10);
+    server.keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT_MS || '65000', 10);
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
