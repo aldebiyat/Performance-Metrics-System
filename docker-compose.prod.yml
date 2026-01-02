@@ -81,6 +81,7 @@ services:
     restart: always
     environment:
       NODE_ENV: production
+      CSP_CONNECT_SRC: ${CSP_CONNECT_SRC:-https://api.example.com}
     volumes: []
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]

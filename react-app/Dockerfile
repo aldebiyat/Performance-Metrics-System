@@ -29,20 +29,28 @@ RUN npm run build
 FROM nginx:alpine AS production
 WORKDIR /usr/share/nginx/html
 
+# Install gettext for envsubst
+RUN apk add --no-cache gettext
+
 # Create non-root user for security
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
 
 # Copy built files
 COPY --from=builder /app/build .
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Change ownership and permissions for non-root nginx
 RUN chown -R appuser:appgroup /usr/share/nginx/html && \
     chown -R appuser:appgroup /var/cache/nginx && \
     chown -R appuser:appgroup /var/log/nginx && \
+    chown -R appuser:appgroup /etc/nginx/conf.d && \
+    chown -R appuser:appgroup /etc/nginx/templates && \
     touch /var/run/nginx.pid && \
     chown -R appuser:appgroup /var/run/nginx.pid
+
+# Default CSP connect-src for production (no localhost)
+ENV CSP_CONNECT_SRC="http://pms-backend:3200"
 
 # Switch to non-root user
 USER appuser
@@ -52,7 +60,8 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+# Run envsubst to substitute environment variables, then start nginx
+CMD ["/bin/sh", "-c", "envsubst '${CSP_CONNECT_SRC}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
 
 # Stage 4: Development
 FROM node:20-alpine AS development
