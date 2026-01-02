@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError } from '../middleware/errorHandler';
 
 // Mock database module
 jest.mock('../config/database', () => ({
@@ -47,6 +46,23 @@ describe('Organization Auth Middleware', () => {
       await expect(requireOrganization(req, res, next)).rejects.toMatchObject({
         statusCode: 401,
         message: 'Not authenticated',
+      });
+    });
+
+    it('should throw unauthorized error if user is not found in database', async () => {
+      const req = createMockRequest();
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      // Mock: user not found in database
+      mockQuery.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+      } as any);
+
+      await expect(requireOrganization(req, res, next)).rejects.toMatchObject({
+        statusCode: 401,
+        message: 'User not found',
       });
     });
 
@@ -164,16 +180,12 @@ describe('Organization Auth Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      expect(() => validateOrganizationAccess(req, res, next)).toThrow(AppError);
-
-      try {
-        validateOrganizationAccess(req, res, next);
-      } catch (error) {
-        expect(error).toMatchObject({
+      expect(() => validateOrganizationAccess(req, res, next)).toThrow(
+        expect.objectContaining({
           statusCode: 403,
           message: 'Access denied to this organization',
-        });
-      }
+        })
+      );
     });
 
     it('should allow access to own organization', () => {
@@ -197,16 +209,28 @@ describe('Organization Auth Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      expect(() => validateOrganizationAccess(req, res, next)).toThrow(AppError);
-
-      try {
-        validateOrganizationAccess(req, res, next);
-      } catch (error) {
-        expect(error).toMatchObject({
+      expect(() => validateOrganizationAccess(req, res, next)).toThrow(
+        expect.objectContaining({
           statusCode: 403,
           message: 'Organization context not established',
-        });
-      }
+        })
+      );
+    });
+
+    it('should throw bad request error if orgId is not a valid number', () => {
+      const req = createMockRequest({
+        organizationId: 10,
+        params: { orgId: 'invalid' },
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      expect(() => validateOrganizationAccess(req, res, next)).toThrow(
+        expect.objectContaining({
+          statusCode: 400,
+          message: 'Invalid organization ID',
+        })
+      );
     });
   });
 
@@ -219,16 +243,12 @@ describe('Organization Auth Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      expect(() => requireOrgAdmin(req, res, next)).toThrow(AppError);
-
-      try {
-        requireOrgAdmin(req, res, next);
-      } catch (error) {
-        expect(error).toMatchObject({
+      expect(() => requireOrgAdmin(req, res, next)).toThrow(
+        expect.objectContaining({
           statusCode: 403,
           message: 'Organization admin access required',
-        });
-      }
+        })
+      );
     });
 
     it('should allow access if user is org admin', () => {
@@ -252,16 +272,12 @@ describe('Organization Auth Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      expect(() => requireOrgAdmin(req, res, next)).toThrow(AppError);
-
-      try {
-        requireOrgAdmin(req, res, next);
-      } catch (error) {
-        expect(error).toMatchObject({
+      expect(() => requireOrgAdmin(req, res, next)).toThrow(
+        expect.objectContaining({
           statusCode: 403,
           message: 'Organization admin access required',
-        });
-      }
+        })
+      );
     });
   });
 });

@@ -65,6 +65,10 @@ export const validateOrganizationAccess = (
 
   const orgIdParam = parseInt(req.params.orgId, 10);
 
+  if (isNaN(orgIdParam)) {
+    throw Errors.badRequest('Invalid organization ID');
+  }
+
   if (orgIdParam !== req.organizationId) {
     throw Errors.forbidden('Access denied to this organization');
   }
