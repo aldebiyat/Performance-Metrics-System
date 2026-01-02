@@ -5,8 +5,40 @@ import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { ApiResponse } from '../types';
+import { query } from '../config/database';
 
 const router = Router();
+
+/**
+ * Verify that the admin and target user share at least one common organization.
+ * This prevents cross-tenant data access via admin endpoints.
+ * @param adminUserId - The ID of the admin making the request
+ * @param targetUserId - The ID of the user being accessed
+ * @throws Forbidden error if users don't share any organization
+ */
+const verifySameOrganization = async (adminUserId: number, targetUserId: number): Promise<void> => {
+  // Find organizations where the admin is a member
+  const adminOrgsResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1',
+    [adminUserId]
+  );
+
+  // Find organizations where the target user is a member
+  const targetOrgsResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1',
+    [targetUserId]
+  );
+
+  const adminOrgIds = new Set(adminOrgsResult.rows.map(r => r.organization_id));
+  const targetOrgIds = targetOrgsResult.rows.map(r => r.organization_id);
+
+  // Check if they share at least one organization
+  const hasCommonOrg = targetOrgIds.some(orgId => adminOrgIds.has(orgId));
+
+  if (!hasCommonOrg && targetOrgIds.length > 0 && adminOrgIds.size > 0) {
+    throw Errors.forbidden('Cannot access users from other organizations');
+  }
+};
 
 // Apply authentication and admin check to all routes
 router.use(authenticate, requireAdmin);
@@ -219,6 +251,9 @@ router.get(
       throw Errors.badRequest('Invalid user ID');
     }
 
+    // Verify admin and target user share at least one organization
+    await verifySameOrganization(req.user!.userId, id);
+
     const user = await adminService.getUserById(id);
 
     if (!user) {
@@ -292,6 +327,9 @@ router.put(
     if (isNaN(id)) {
       throw Errors.badRequest('Invalid user ID');
     }
+
+    // Verify admin and target user share at least one organization
+    await verifySameOrganization(req.user!.userId, id);
 
     const { role, name, is_active } = req.body;
 
@@ -382,6 +420,9 @@ router.delete(
     if (isNaN(id)) {
       throw Errors.badRequest('Invalid user ID');
     }
+
+    // Verify admin and target user share at least one organization
+    await verifySameOrganization(req.user!.userId, id);
 
     // Prevent admin from deleting themselves
     if (id === req.user!.userId) {
