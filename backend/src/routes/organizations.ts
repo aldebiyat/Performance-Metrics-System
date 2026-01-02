@@ -260,15 +260,23 @@ router.delete(
       throw Errors.validation('Invalid organization ID');
     }
 
-    // Invalidate all refresh tokens for members of this organization
-    await query(
-      `DELETE FROM refresh_tokens WHERE user_id IN (
-        SELECT user_id FROM organization_members WHERE organization_id = $1
-      )`,
+    // Get member user IDs BEFORE deletion (while relationship still exists)
+    const membersResult = await query(
+      'SELECT user_id FROM organization_members WHERE organization_id = $1',
       [orgId]
     );
+    const memberUserIds = membersResult.rows.map(r => r.user_id);
 
+    // FIRST: Verify ownership/permission (throws if not authorized)
     await organizationService.deleteOrganization(orgId, req.user!.userId);
+
+    // THEN: Invalidate tokens for former members (after successful deletion)
+    if (memberUserIds.length > 0) {
+      await query(
+        `DELETE FROM refresh_tokens WHERE user_id = ANY($1)`,
+        [memberUserIds]
+      );
+    }
 
     const response: ApiResponse<{ message: string }> = {
       success: true,
