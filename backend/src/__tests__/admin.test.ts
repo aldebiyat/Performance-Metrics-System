@@ -265,6 +265,83 @@ describe('Admin Service', () => {
     });
   });
 
+  describe('getUsers multi-tenant isolation', () => {
+    it('should only return users from admin\'s organizations when adminUserId is provided', async () => {
+      // Admin user (id: 1) belongs to org 1
+      // User 2 belongs to org 1 (same as admin - should be visible)
+      // User 3 belongs to org 2 only (different org - should NOT be visible)
+
+      const mockUsersInAdminOrgs = [
+        { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin', is_active: true },
+        { id: 2, email: 'user2@example.com', name: 'User 2', role: 'viewer', is_active: true },
+      ];
+
+      // Mock count query with organization filter
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '2' }] } as any);
+      // Mock users query with organization filter
+      mockQuery.mockResolvedValueOnce({ rows: mockUsersInAdminOrgs } as any);
+
+      const result = await adminService.getUsers(1, 10, undefined, 1); // adminUserId = 1
+
+      expect(result.users).toEqual(mockUsersInAdminOrgs);
+      expect(result.total).toBe(2);
+      expect(result.users.length).toBe(2);
+
+      // Verify that the query includes organization filtering
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('organization_members'),
+        expect.arrayContaining([1]) // adminUserId should be in params
+      );
+    });
+
+    it('should not filter by organization when adminUserId is not provided', async () => {
+      const mockAllUsers = [
+        { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin', is_active: true },
+        { id: 2, email: 'user2@example.com', name: 'User 2', role: 'viewer', is_active: true },
+        { id: 3, email: 'user3@example.com', name: 'User 3', role: 'viewer', is_active: true },
+      ];
+
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '3' }] } as any);
+      mockQuery.mockResolvedValueOnce({ rows: mockAllUsers } as any);
+
+      const result = await adminService.getUsers(1, 10);
+
+      expect(result.users).toEqual(mockAllUsers);
+      expect(result.total).toBe(3);
+
+      // Verify that the query does NOT include organization filtering
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.not.stringContaining('organization_members'),
+        expect.any(Array)
+      );
+    });
+
+    it('should combine organization filter with search filter', async () => {
+      const mockFilteredUsers = [
+        { id: 2, email: 'john@example.com', name: 'John Doe', role: 'viewer', is_active: true },
+      ];
+
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '1' }] } as any);
+      mockQuery.mockResolvedValueOnce({ rows: mockFilteredUsers } as any);
+
+      const result = await adminService.getUsers(1, 10, 'john', 1); // search + adminUserId
+
+      expect(result.users).toEqual(mockFilteredUsers);
+      expect(result.total).toBe(1);
+
+      // Verify both organization filter and search filter are present
+      const calls = mockQuery.mock.calls;
+      const usersQueryCall = calls.find(call =>
+        typeof call[0] === 'string' &&
+        call[0].includes('organization_members') &&
+        call[0].includes('ILIKE')
+      );
+      expect(usersQueryCall).toBeDefined();
+      expect(usersQueryCall![1]).toContain(1); // adminUserId
+      expect(usersQueryCall![1]).toContain('%john%'); // search term
+    });
+  });
+
   describe('deleteUser', () => {
     it('should soft delete user', async () => {
       const mockExistingUser = {

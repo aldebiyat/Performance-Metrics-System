@@ -221,7 +221,7 @@ router.get(
     const limit = Math.min(parseInt(req.query.limit as string, 10) || 10, 100);
     const search = req.query.search as string | undefined;
 
-    const result = await adminService.getUsers(page, limit, search);
+    const result = await adminService.getUsers(page, limit, search, req.user!.userId);
 
     const response: ApiResponse<typeof result> = {
       success: true,

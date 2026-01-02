@@ -24,29 +24,50 @@ export interface DashboardStats {
 }
 
 export const adminService = {
-  async getUsers(page: number = 1, limit: number = 10, search?: string): Promise<PaginatedUsers> {
+  async getUsers(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    adminUserId?: number
+  ): Promise<PaginatedUsers> {
     const offset = (page - 1) * limit;
 
-    let countQuery = 'SELECT COUNT(*) FROM users WHERE deleted_at IS NULL';
-    let usersQuery = `
-      SELECT id, email, name, role, is_active, email_verified, created_at, updated_at
-      FROM users
-      WHERE deleted_at IS NULL
-    `;
+    let whereClause = 'WHERE u.deleted_at IS NULL';
     const params: (string | number)[] = [];
+    let paramIndex = 1;
 
-    if (search) {
-      countQuery += ' AND (email ILIKE $1 OR name ILIKE $1)';
-      usersQuery += ' AND (email ILIKE $1 OR name ILIKE $1)';
-      params.push(`%${search}%`);
+    // Filter by organizations the admin belongs to
+    if (adminUserId) {
+      whereClause += ` AND u.id IN (
+        SELECT DISTINCT om2.user_id
+        FROM organization_members om1
+        JOIN organization_members om2 ON om1.organization_id = om2.organization_id
+        WHERE om1.user_id = $${paramIndex}
+      )`;
+      params.push(adminUserId);
+      paramIndex++;
     }
 
-    usersQuery += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
+    if (search) {
+      whereClause += ` AND (u.email ILIKE $${paramIndex} OR u.name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const countQuery = `SELECT COUNT(*) FROM users u ${whereClause}`;
+    const usersQuery = `
+      SELECT u.id, u.email, u.name, u.role, u.is_active, u.email_verified, u.created_at, u.updated_at
+      FROM users u
+      ${whereClause}
+      ORDER BY u.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const usersParams = [...params, limit, offset];
 
     const [countResult, usersResult] = await Promise.all([
-      query(countQuery, search ? [`%${search}%`] : []),
-      query(usersQuery, params),
+      query(countQuery, params),
+      query(usersQuery, usersParams),
     ]);
 
     const total = parseInt(countResult.rows[0].count, 10);
