@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { metricsService } from '../services/metricsService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
+import { requireOrganization } from '../middleware/organizationAuth';
 import { ApiResponse, DateRange, CategoryWithMetrics, Category } from '../types';
 import { validate, metricsQuerySchema, categoryParamSchema } from '../validators';
 
@@ -42,6 +43,7 @@ const router = Router();
 router.get(
   '/categories',
   authenticate,
+  asyncHandler(requireOrganization),
   asyncHandler(async (_req: Request, res: Response) => {
     const categories = await metricsService.getCategories();
 
@@ -106,6 +108,7 @@ router.get(
 router.get(
   '/summary',
   authenticate,
+  asyncHandler(requireOrganization),
   validate(metricsQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
     const { range } = req.query as { range: DateRange };
@@ -188,6 +191,7 @@ router.get(
 router.get(
   '/:category',
   authenticate,
+  asyncHandler(requireOrganization),
   validate(categoryParamSchema, 'params'),
   validate(metricsQuerySchema, 'query'),
   asyncHandler(async (req: Request, res: Response) => {
