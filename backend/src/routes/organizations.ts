@@ -3,6 +3,7 @@ import { organizationService } from '../services/organizationService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { ApiResponse } from '../types';
+import { query } from '../config/database';
 
 const router = Router();
 
@@ -258,6 +259,14 @@ router.delete(
     if (isNaN(orgId)) {
       throw Errors.validation('Invalid organization ID');
     }
+
+    // Invalidate all refresh tokens for members of this organization
+    await query(
+      `DELETE FROM refresh_tokens WHERE user_id IN (
+        SELECT user_id FROM organization_members WHERE organization_id = $1
+      )`,
+      [orgId]
+    );
 
     await organizationService.deleteOrganization(orgId, req.user!.userId);
 
