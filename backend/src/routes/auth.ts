@@ -72,13 +72,9 @@ const clearRefreshTokenCookie = (res: Response) => {
  *                       type: string
  *                     name:
  *                       type: string
- *                     tokens:
- *                       type: object
- *                       properties:
- *                         accessToken:
- *                           type: string
- *                         refreshToken:
- *                           type: string
+ *                     accessToken:
+ *                       type: string
+ *                       description: JWT access token (refresh token is set as httpOnly cookie)
  *       400:
  *         description: Validation error or user already exists
  *       429:
@@ -106,9 +102,9 @@ router.post(
     // Set refresh token as httpOnly cookie
     setRefreshTokenCookie(res, tokens.refreshToken);
 
-    const response: ApiResponse<typeof user & { tokens: typeof tokens }> = {
+    const response: ApiResponse<typeof user & { accessToken: string }> = {
       success: true,
-      data: { ...user, tokens },
+      data: { ...user, accessToken: tokens.accessToken },
     };
 
     res.status(201).json(response);
@@ -155,13 +151,9 @@ router.post(
  *                       type: string
  *                     name:
  *                       type: string
- *                     tokens:
- *                       type: object
- *                       properties:
- *                         accessToken:
- *                           type: string
- *                         refreshToken:
- *                           type: string
+ *                     accessToken:
+ *                       type: string
+ *                       description: JWT access token (refresh token is set as httpOnly cookie)
  *       401:
  *         description: Invalid credentials
  *       429:
@@ -189,9 +181,9 @@ router.post(
     // Set refresh token as httpOnly cookie
     setRefreshTokenCookie(res, tokens.refreshToken);
 
-    const response: ApiResponse<typeof user & { tokens: typeof tokens }> = {
+    const response: ApiResponse<typeof user & { accessToken: string }> = {
       success: true,
-      data: { ...user, tokens },
+      data: { ...user, accessToken: tokens.accessToken },
     };
 
     res.json(response);
@@ -230,8 +222,7 @@ router.post(
  *                   properties:
  *                     accessToken:
  *                       type: string
- *                     refreshToken:
- *                       type: string
+ *                       description: New JWT access token (new refresh token is set as httpOnly cookie)
  *       401:
  *         description: Invalid or expired refresh token
  *       429:
@@ -253,9 +244,9 @@ router.post(
     // Set new refresh token as httpOnly cookie
     setRefreshTokenCookie(res, tokens.refreshToken);
 
-    const response: ApiResponse<typeof tokens> = {
+    const response: ApiResponse<{ accessToken: string }> = {
       success: true,
-      data: tokens,
+      data: { accessToken: tokens.accessToken },
     };
 
     res.json(response);
