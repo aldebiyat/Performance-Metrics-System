@@ -5,6 +5,9 @@ import { TokenPayload } from '../types';
 import { Errors } from './errorHandler';
 import { tokenBlacklistService } from '../services/tokenBlacklistService';
 
+const JWT_ISSUER = process.env.JWT_ISSUER || 'pms-api';
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'pms-client';
+
 // Extend Express Request to include user
 declare global {
   namespace Express {
@@ -38,7 +41,9 @@ export const generateAccessToken = (payload: TokenPayload): string => {
   const expiresIn = process.env.JWT_ACCESS_EXPIRY || '15m';
   return jwt.sign(payload, getJwtSecret(), {
     expiresIn,
-    algorithm: 'HS256'
+    algorithm: 'HS256',
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE
   } as jwt.SignOptions);
 };
 
@@ -46,16 +51,26 @@ export const generateRefreshToken = (payload: TokenPayload): string => {
   const expiresIn = process.env.JWT_REFRESH_EXPIRY || '7d';
   return jwt.sign(payload, getJwtRefreshSecret(), {
     expiresIn,
-    algorithm: 'HS256'
+    algorithm: 'HS256',
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE
   } as jwt.SignOptions);
 };
 
 export const verifyAccessToken = (token: string): TokenPayload => {
-  return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as TokenPayload;
+  return jwt.verify(token, getJwtSecret(), {
+    algorithms: ['HS256'],
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE
+  }) as TokenPayload;
 };
 
 export const verifyRefreshToken = (token: string): TokenPayload => {
-  return jwt.verify(token, getJwtRefreshSecret(), { algorithms: ['HS256'] }) as TokenPayload;
+  return jwt.verify(token, getJwtRefreshSecret(), {
+    algorithms: ['HS256'],
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE
+  }) as TokenPayload;
 };
 
 // Keep verifyToken for backward compatibility (uses access token secret)
