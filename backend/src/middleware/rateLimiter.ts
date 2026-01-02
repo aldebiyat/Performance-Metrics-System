@@ -37,6 +37,7 @@ const getStore = () => {
       sendCommand: (...args: string[]) => redisClient!.sendCommand(args),
     });
   }
+  logger.warn('SECURITY WARNING: Rate limiter using in-memory store. Configure Redis for distributed rate limiting.');
   return undefined; // Use default memory store
 };
 
