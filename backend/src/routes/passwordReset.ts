@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
+import { config } from '../config/constants';
 import { query } from '../config/database';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { passwordResetLimiter } from '../middleware/rateLimiter';
@@ -12,9 +13,6 @@ import { z } from 'zod';
 import logger from '../config/logger';
 
 const router = Router();
-
-const SALT_ROUNDS = 12;
-const TOKEN_EXPIRY_HOURS = 1;
 
 // Validation schemas
 const forgotPasswordSchema = z.object({
@@ -110,7 +108,7 @@ router.post(
     const resetToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + TOKEN_EXPIRY_HOURS);
+    expiresAt.setHours(expiresAt.getHours() + config.passwordResetTokenHours);
 
     // Store hashed token
     await query(
@@ -201,7 +199,7 @@ router.post(
     const resetRecord = tokenResult.rows[0];
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(password, config.saltRounds);
 
     // Update password
     await query(
