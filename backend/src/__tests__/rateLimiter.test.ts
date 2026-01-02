@@ -38,19 +38,28 @@ describe('Rate Limiter Middleware', () => {
   });
 
   describe('Rate limiter exports', () => {
-    it('should export apiLimiter as a function (middleware)', () => {
+    it('should export apiLimiter as middleware array (Redis check + rate limiter)', () => {
       expect(apiLimiter).toBeDefined();
-      expect(typeof apiLimiter).toBe('function');
+      expect(Array.isArray(apiLimiter)).toBe(true);
+      expect(apiLimiter.length).toBe(2);
+      expect(typeof apiLimiter[0]).toBe('function');
+      expect(typeof apiLimiter[1]).toBe('function');
     });
 
-    it('should export authLimiter as a function (middleware)', () => {
+    it('should export authLimiter as middleware array (Redis check + rate limiter)', () => {
       expect(authLimiter).toBeDefined();
-      expect(typeof authLimiter).toBe('function');
+      expect(Array.isArray(authLimiter)).toBe(true);
+      expect(authLimiter.length).toBe(2);
+      expect(typeof authLimiter[0]).toBe('function');
+      expect(typeof authLimiter[1]).toBe('function');
     });
 
-    it('should export passwordResetLimiter as a function (middleware)', () => {
+    it('should export passwordResetLimiter as middleware array (Redis check + rate limiter)', () => {
       expect(passwordResetLimiter).toBeDefined();
-      expect(typeof passwordResetLimiter).toBe('function');
+      expect(Array.isArray(passwordResetLimiter)).toBe(true);
+      expect(passwordResetLimiter.length).toBe(2);
+      expect(typeof passwordResetLimiter[0]).toBe('function');
+      expect(typeof passwordResetLimiter[1]).toBe('function');
     });
 
     it('should export initRateLimitRedis as a function', () => {
@@ -60,17 +69,17 @@ describe('Rate Limiter Middleware', () => {
   });
 
   describe('Rate limiter middleware structure', () => {
-    it('apiLimiter should be a valid Express middleware', () => {
-      // Express middleware takes 3 arguments: req, res, next
-      expect(apiLimiter.length).toBeGreaterThanOrEqual(2);
+    it('apiLimiter should contain valid Express middleware functions', () => {
+      // Each middleware in array takes 3 arguments: req, res, next
+      expect(apiLimiter[0].length).toBeGreaterThanOrEqual(2);
     });
 
-    it('authLimiter should be a valid Express middleware', () => {
-      expect(authLimiter.length).toBeGreaterThanOrEqual(2);
+    it('authLimiter should contain valid Express middleware functions', () => {
+      expect(authLimiter[0].length).toBeGreaterThanOrEqual(2);
     });
 
-    it('passwordResetLimiter should be a valid Express middleware', () => {
-      expect(passwordResetLimiter.length).toBeGreaterThanOrEqual(2);
+    it('passwordResetLimiter should contain valid Express middleware functions', () => {
+      expect(passwordResetLimiter[0].length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -102,12 +111,12 @@ describe('Rate Limiter Middleware', () => {
   });
 
   describe('Rate limiter configuration', () => {
-    it('should export all rate limiters as middleware functions', () => {
-      // When Redis is not initialized, all limiters return the same fail-closed middleware
-      // This is the expected security behavior - we verify they are all defined and callable
-      expect(typeof apiLimiter).toBe('function');
-      expect(typeof authLimiter).toBe('function');
-      expect(typeof passwordResetLimiter).toBe('function');
+    it('should export all rate limiters as middleware arrays', () => {
+      // Rate limiters are now arrays: [redisAvailabilityCheck, rateLimiter]
+      // This ensures Redis availability is checked at request time, not module load time
+      expect(Array.isArray(apiLimiter)).toBe(true);
+      expect(Array.isArray(authLimiter)).toBe(true);
+      expect(Array.isArray(passwordResetLimiter)).toBe(true);
     });
   });
 });

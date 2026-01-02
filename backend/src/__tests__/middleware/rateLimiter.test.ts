@@ -31,8 +31,10 @@ describe('rateLimiter fail-closed behavior', () => {
 
     const next = jest.fn() as NextFunction;
 
-    // When Redis unavailable, middleware returns 503 directly (doesn't call next)
-    apiLimiter(req, res, next);
+    // apiLimiter is now an array: [redisAvailabilityCheck, rateLimiter]
+    // The first middleware checks Redis availability at request time
+    const redisAvailabilityCheck = apiLimiter[0];
+    redisAvailabilityCheck(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(

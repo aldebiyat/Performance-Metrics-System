@@ -42,17 +42,24 @@ const getStore = (): RedisStore | null => {
   return null;
 };
 
-// Flag to track if Redis is available for rate limiting
-let redisAvailable = false;
+// Log throttling to prevent log spam when Redis is down
+let lastRedisUnavailableLogTime = 0;
+const LOG_THROTTLE_MS = 60000; // Log once per minute max
 
 /**
  * Middleware that fails closed when Redis is unavailable.
+ * Checks Redis availability at REQUEST time, not module load time.
  * Returns 503 Service Unavailable instead of allowing requests through
  * with an ineffective in-memory store.
  */
-const failClosedMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  if (!redisAvailable) {
-    logger.error('CRITICAL: Rate limiter Redis unavailable - rejecting request for security');
+const redisAvailabilityCheck = (req: Request, res: Response, next: NextFunction) => {
+  if (!redisClient || !redisClient.isOpen) {
+    const now = Date.now();
+    // Throttle logging to prevent log spam under high load
+    if (now - lastRedisUnavailableLogTime >= LOG_THROTTLE_MS) {
+      logger.error('CRITICAL: Rate limiter Redis unavailable - rejecting requests for security');
+      lastRedisUnavailableLogTime = now;
+    }
     return res.status(503).json({
       success: false,
       error: 'Service temporarily unavailable. Please try again later.',
@@ -63,22 +70,41 @@ const failClosedMiddleware = (req: Request, res: Response, next: NextFunction) =
 
 /**
  * Creates a rate limiter that fails closed when Redis is unavailable.
- * Wraps express-rate-limit with a fail-closed check.
+ * Chains redisAvailabilityCheck (checks at request time) with the actual rate limiter.
+ * This ensures Redis availability is checked per-request, not at module load time.
  */
 const createFailClosedRateLimiter = (options: Parameters<typeof rateLimit>[0]) => {
-  const store = getStore();
-
-  if (store === null) {
-    redisAvailable = false;
-    logger.warn('SECURITY WARNING: Rate limiter Redis unavailable. Requests will be rejected with 503.');
-    return failClosedMiddleware;
-  }
-
-  redisAvailable = true;
-  return rateLimit({
+  // Create the rate limiter - it will use Redis store if available at request time
+  const limiter = rateLimit({
     ...options,
-    store,
+    store: {
+      // Dynamic store that creates RedisStore on demand
+      init: () => {},
+      get: async (key: string) => {
+        const store = getStore();
+        if (!store) return undefined;
+        return store.get?.(key);
+      },
+      increment: async (key: string) => {
+        const store = getStore();
+        if (!store) return { totalHits: 0, resetTime: new Date() };
+        return store.increment(key);
+      },
+      decrement: async (key: string) => {
+        const store = getStore();
+        if (!store) return;
+        return store.decrement?.(key);
+      },
+      resetKey: async (key: string) => {
+        const store = getStore();
+        if (!store) return;
+        return store.resetKey?.(key);
+      },
+    },
   });
+
+  // Chain: first check Redis availability, then apply rate limit
+  return [redisAvailabilityCheck, limiter];
 };
 
 // General API rate limit - configurable requests per window
