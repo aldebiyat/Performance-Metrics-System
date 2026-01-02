@@ -63,7 +63,13 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({
+  limit: process.env.MAX_REQUEST_SIZE || '1mb'
+}));
+app.use(express.urlencoded({
+  extended: true,
+  limit: process.env.MAX_REQUEST_SIZE || '1mb'
+}));
 app.use(cookieParser());
 
 // Prometheus metrics middleware - must be early to capture all requests
