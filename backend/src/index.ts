@@ -38,9 +38,10 @@ if (process.env.SENTRY_DSN) {
 
 const app = express();
 
-// Trust proxy - required for rate limiting when behind a reverse proxy (e.g., nginx, load balancer)
-// This ensures req.ip returns the client's real IP from X-Forwarded-For header
-app.set('trust proxy', 1);
+// Trust proxy - configurable for different deployment environments
+// Set to number (1-5) for proxy hops, or 'loopback' for localhost only
+const trustProxy = process.env.TRUST_PROXY || '1';
+app.set('trust proxy', /^\d+$/.test(trustProxy) ? parseInt(trustProxy, 10) : trustProxy);
 
 // Compression middleware - compress responses for better performance
 app.use(compression({
@@ -56,7 +57,11 @@ app.use(compression({
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+  origin: process.env.CORS_ORIGIN
+    ?.split(',')
+    .map(origin => origin.trim())
+    .filter(origin => origin.length > 0)
+    || ['http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -71,6 +76,38 @@ app.use(express.urlencoded({
   limit: process.env.MAX_REQUEST_SIZE || '1mb'
 }));
 app.use(cookieParser());
+
+// Content-Type validation for requests with body
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const methodsWithBody = ['POST', 'PUT', 'PATCH'];
+
+  if (methodsWithBody.includes(req.method)) {
+    const contentType = req.get('Content-Type');
+    const contentLength = req.headers['content-length'];
+
+    // Only validate if there's a body
+    if (contentLength && contentLength !== '0') {
+      if (!contentType) {
+        return res.status(415).json({
+          success: false,
+          error: 'Content-Type header is required for requests with a body',
+        });
+      }
+
+      const allowedTypes = ['application/json', 'multipart/form-data', 'application/x-www-form-urlencoded'];
+      const isAllowed = allowedTypes.some(type => contentType.includes(type));
+
+      if (!isAllowed) {
+        return res.status(415).json({
+          success: false,
+          error: 'Unsupported Content-Type',
+        });
+      }
+    }
+  }
+
+  next();
+});
 
 // Prometheus metrics middleware - must be early to capture all requests
 app.use(metricsMiddleware);
