@@ -147,7 +147,7 @@ router.use(authenticate, requireAdmin);
 router.get(
   '/stats',
   asyncHandler(async (req: Request, res: Response) => {
-    const stats = await adminService.getStats();
+    const stats = await adminService.getStats(req.user!.userId);
 
     const response: ApiResponse<typeof stats> = {
       success: true,

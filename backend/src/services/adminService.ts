@@ -157,7 +157,39 @@ export const adminService = {
     await query('DELETE FROM refresh_tokens WHERE user_id = $1', [id]);
   },
 
-  async getStats(): Promise<DashboardStats> {
+  async getStats(adminUserId?: number): Promise<DashboardStats> {
+    // Build organization filter subquery for users
+    const userOrgFilter = adminUserId
+      ? `AND u.id IN (
+          SELECT DISTINCT om2.user_id
+          FROM organization_members om1
+          JOIN organization_members om2 ON om1.organization_id = om2.organization_id
+          WHERE om1.user_id = $1
+        )`
+      : '';
+
+    // Build organization filter for metrics (by creator user_id)
+    const metricsOrgFilter = adminUserId
+      ? `AND md.user_id IN (
+          SELECT DISTINCT om2.user_id
+          FROM organization_members om1
+          JOIN organization_members om2 ON om1.organization_id = om2.organization_id
+          WHERE om1.user_id = $1
+        )`
+      : '';
+
+    // Build organization filter for categories (by creator user_id)
+    const categoriesOrgFilter = adminUserId
+      ? `AND c.user_id IN (
+          SELECT DISTINCT om2.user_id
+          FROM organization_members om1
+          JOIN organization_members om2 ON om1.organization_id = om2.organization_id
+          WHERE om1.user_id = $1
+        )`
+      : '';
+
+    const params = adminUserId ? [adminUserId] : [];
+
     const [
       usersResult,
       activeUsersResult,
@@ -166,19 +198,33 @@ export const adminService = {
       recentSignupsResult,
       roleStatsResult,
     ] = await Promise.all([
-      query('SELECT COUNT(*) FROM users WHERE deleted_at IS NULL'),
-      query('SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND is_active = true'),
-      query('SELECT COUNT(*) FROM metric_definitions WHERE is_active = true'),
-      query('SELECT COUNT(*) FROM categories'),
       query(
-        `SELECT COUNT(*) FROM users
-         WHERE deleted_at IS NULL AND created_at > NOW() - INTERVAL '7 days'`
+        `SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL ${userOrgFilter}`,
+        params
       ),
       query(
-        `SELECT role, COUNT(*) as count
-         FROM users
-         WHERE deleted_at IS NULL
-         GROUP BY role`
+        `SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL AND u.is_active = true ${userOrgFilter}`,
+        params
+      ),
+      query(
+        `SELECT COUNT(*) FROM metric_definitions md WHERE md.is_active = true ${metricsOrgFilter}`,
+        params
+      ),
+      query(
+        `SELECT COUNT(*) FROM categories c WHERE 1=1 ${categoriesOrgFilter}`,
+        params
+      ),
+      query(
+        `SELECT COUNT(*) FROM users u
+         WHERE u.deleted_at IS NULL AND u.created_at > NOW() - INTERVAL '7 days' ${userOrgFilter}`,
+        params
+      ),
+      query(
+        `SELECT u.role, COUNT(*) as count
+         FROM users u
+         WHERE u.deleted_at IS NULL ${userOrgFilter}
+         GROUP BY u.role`,
+        params
       ),
     ]);
 

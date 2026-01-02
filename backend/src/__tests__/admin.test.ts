@@ -342,6 +342,86 @@ describe('Admin Service', () => {
     });
   });
 
+  describe('getStats multi-tenant isolation', () => {
+    it('should only count users/metrics from admin\'s organizations when adminUserId is provided', async () => {
+      // Scenario: Admin user (id: 1) belongs to org 1
+      // Org 1 has 2 users (admin + user2)
+      // Org 2 has 1 user (user3) - should NOT be counted
+      // Total metrics created by users in org 1: 10
+      // Total categories created by users in org 1: 3
+
+      // Mock queries with organization filtering
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] } as any)  // totalUsers (filtered)
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] } as any)  // activeUsers (filtered)
+        .mockResolvedValueOnce({ rows: [{ count: '10' }] } as any) // totalMetrics (filtered)
+        .mockResolvedValueOnce({ rows: [{ count: '3' }] } as any)  // totalCategories (filtered)
+        .mockResolvedValueOnce({ rows: [{ count: '1' }] } as any)  // recentSignups (filtered)
+        .mockResolvedValueOnce({                                   // usersByRole (filtered)
+          rows: [
+            { role: 'admin', count: '1' },
+            { role: 'viewer', count: '1' },
+          ],
+        } as any);
+
+      const stats = await adminService.getStats(1); // adminUserId = 1
+
+      expect(stats.totalUsers).toBe(2);
+      expect(stats.activeUsers).toBe(2);
+      expect(stats.totalMetrics).toBe(10);
+      expect(stats.totalCategories).toBe(3);
+      expect(stats.recentSignups).toBe(1);
+      expect(stats.usersByRole).toEqual({
+        admin: 1,
+        editor: 0,
+        viewer: 1,
+      });
+
+      // Verify that all queries include organization filtering
+      const allCalls = mockQuery.mock.calls;
+      // All user-related queries should include organization_members filter
+      const userFilteredCalls = allCalls.filter(call =>
+        typeof call[0] === 'string' &&
+        call[0].includes('organization_members')
+      );
+      // Should have filtering on users queries (totalUsers, activeUsers, recentSignups, roleStats)
+      expect(userFilteredCalls.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('should not filter stats when adminUserId is not provided', async () => {
+      // Mock all stats queries without filtering
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ count: '25' }] } as any) // total users (all)
+        .mockResolvedValueOnce({ rows: [{ count: '20' }] } as any) // active users (all)
+        .mockResolvedValueOnce({ rows: [{ count: '50' }] } as any) // total metrics (all)
+        .mockResolvedValueOnce({ rows: [{ count: '5' }] } as any)  // total categories (all)
+        .mockResolvedValueOnce({ rows: [{ count: '3' }] } as any)  // recent signups (all)
+        .mockResolvedValueOnce({                                   // users by role (all)
+          rows: [
+            { role: 'admin', count: '2' },
+            { role: 'editor', count: '8' },
+            { role: 'viewer', count: '15' },
+          ],
+        } as any);
+
+      const stats = await adminService.getStats(); // No adminUserId
+
+      expect(stats.totalUsers).toBe(25);
+      expect(stats.activeUsers).toBe(20);
+      expect(stats.totalMetrics).toBe(50);
+      expect(stats.totalCategories).toBe(5);
+      expect(stats.recentSignups).toBe(3);
+
+      // Verify that queries do NOT include organization filtering
+      const allCalls = mockQuery.mock.calls;
+      const userFilteredCalls = allCalls.filter(call =>
+        typeof call[0] === 'string' &&
+        call[0].includes('organization_members')
+      );
+      expect(userFilteredCalls.length).toBe(0);
+    });
+  });
+
   describe('deleteUser', () => {
     it('should soft delete user', async () => {
       const mockExistingUser = {
