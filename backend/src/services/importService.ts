@@ -1,5 +1,6 @@
 import { query, getClient } from '../config/database';
 import logger from '../config/logger';
+import { sanitizeForLog } from '../utils/logSanitizer';
 
 export interface ParsedRow {
   category: string;
@@ -242,7 +243,7 @@ export const importMetrics = async (rows: ParsedRow[]): Promise<ImportResult> =>
             [categoryId, metricSlug, row.metric_name]
           );
           metricId = insertMetricResult.rows[0].id;
-          logger.info(`Created new metric definition: ${row.metric_name}`);
+          logger.info('Created new metric definition', { metricName: sanitizeForLog(row.metric_name) });
         } else {
           metricId = metricResult.rows[0].id;
         }
@@ -259,7 +260,10 @@ export const importMetrics = async (rows: ParsedRow[]): Promise<ImportResult> =>
             'UPDATE metric_values SET metric_count = $1, updated_at = NOW() WHERE id = $2',
             [row.value, existingValue.rows[0].id]
           );
-          logger.info(`Updated metric value for ${row.metric_name} on ${row.recorded_at}`);
+          logger.info('Updated metric value', {
+            metricName: sanitizeForLog(row.metric_name),
+            recordedAt: sanitizeForLog(row.recorded_at)
+          });
         } else {
           // Insert new value
           await client.query(
@@ -271,7 +275,7 @@ export const importMetrics = async (rows: ParsedRow[]): Promise<ImportResult> =>
 
         rowsImported++;
       } catch (error) {
-        logger.error(`Error importing row ${rowNumber}:`, error);
+        logger.error('Error importing row', { rowNumber, error });
         errors.push({
           row: rowNumber,
           field: 'general',
@@ -291,7 +295,7 @@ export const importMetrics = async (rows: ParsedRow[]): Promise<ImportResult> =>
     };
   } catch (error) {
     await client.query('ROLLBACK');
-    logger.error('Import transaction failed:', error);
+    logger.error('Import transaction failed', { error });
     throw error;
   } finally {
     client.release();
