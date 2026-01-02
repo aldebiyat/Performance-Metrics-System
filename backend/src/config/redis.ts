@@ -49,7 +49,15 @@ export const initRedis = async (): Promise<void> => {
   }
 
   try {
-    redisClient = createClient({ url: redisUrl });
+    const useTLS = process.env.REDIS_TLS === 'true';
+
+    redisClient = createClient({
+      url: redisUrl,
+      socket: useTLS ? {
+        tls: true,
+        rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== 'false',
+      } : undefined,
+    });
 
     redisClient.on('error', (err) => {
       logger.error('Redis Client Error', { error: err.message });
