@@ -173,8 +173,9 @@ router.post(
   validate(loginSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
 
-    const { user, tokens } = await authService.login(email, password);
+    const { user, tokens } = await authService.login(email, password, ipAddress);
 
     await auditService.log({
       userId: user.id,

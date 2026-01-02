@@ -20,6 +20,17 @@ jest.mock('../services/emailService', () => ({
   },
 }));
 
+// Mock login attempt service
+const mockLoginAttemptService = {
+  isLocked: jest.fn().mockResolvedValue({ locked: false }),
+  recordFailedAttempt: jest.fn().mockResolvedValue(undefined),
+  clearAttempts: jest.fn().mockResolvedValue(undefined),
+  getAttemptCount: jest.fn().mockResolvedValue(0),
+};
+jest.mock('../services/loginAttemptService', () => ({
+  loginAttemptService: mockLoginAttemptService,
+}));
+
 // Import after mocking
 import { query } from '../config/database';
 import { authService } from '../services/authService';
@@ -31,6 +42,10 @@ describe('Auth Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockTxQuery.mockReset();
+    // Reset login attempt service mocks to default behavior
+    mockLoginAttemptService.isLocked.mockResolvedValue({ locked: false });
+    mockLoginAttemptService.recordFailedAttempt.mockResolvedValue(undefined);
+    mockLoginAttemptService.clearAttempts.mockResolvedValue(undefined);
   });
 
   describe('register', () => {
@@ -215,6 +230,101 @@ describe('Auth Service', () => {
         expect((error as AppError).statusCode).toBe(401);
         expect((error as AppError).message).toBe('Account is deactivated');
       }
+    });
+
+    it('should throw 429 error when account is locked', async () => {
+      const email = 'locked@example.com';
+      const password = 'anyPassword123';
+
+      // Mock: account is locked
+      mockLoginAttemptService.isLocked.mockResolvedValue({ locked: true, remainingMinutes: 10 });
+
+      try {
+        await authService.login(email, password);
+        fail('Expected error to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).statusCode).toBe(429);
+        expect((error as AppError).message).toContain('Account temporarily locked');
+        expect((error as AppError).message).toContain('10 minute');
+      }
+    });
+
+    it('should record failed attempt on invalid email', async () => {
+      const email = 'nonexistent@example.com';
+      const password = 'anyPassword123';
+      const ipAddress = '192.168.1.1';
+
+      // Mock: no user found
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
+
+      try {
+        await authService.login(email, password, ipAddress);
+        fail('Expected error to be thrown');
+      } catch {
+        // Expected error
+      }
+
+      expect(mockLoginAttemptService.recordFailedAttempt).toHaveBeenCalledWith(email, ipAddress);
+    });
+
+    it('should record failed attempt on invalid password', async () => {
+      const email = 'test@example.com';
+      const correctPassword = 'correctPassword123';
+      const wrongPassword = 'wrongPassword123';
+      const ipAddress = '192.168.1.1';
+      const passwordHash = await bcrypt.hash(correctPassword, 12);
+
+      // Mock: user found
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          email: email.toLowerCase(),
+          password_hash: passwordHash,
+          name: 'Test User',
+          role: 'viewer',
+          is_active: true,
+        }],
+        rowCount: 1,
+      } as any);
+
+      try {
+        await authService.login(email, wrongPassword, ipAddress);
+        fail('Expected error to be thrown');
+      } catch {
+        // Expected error
+      }
+
+      expect(mockLoginAttemptService.recordFailedAttempt).toHaveBeenCalledWith(email, ipAddress);
+    });
+
+    it('should clear failed attempts on successful login', async () => {
+      const email = 'test@example.com';
+      const password = 'correctPassword123';
+      const passwordHash = await bcrypt.hash(password, 12);
+
+      // Mock: user found
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          email: email.toLowerCase(),
+          password_hash: passwordHash,
+          name: 'Test User',
+          role: 'viewer',
+          is_active: true,
+        }],
+        rowCount: 1,
+      } as any);
+
+      // Mock: insert refresh token
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 } as any);
+
+      // Mock: cleanup expired tokens
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
+
+      await authService.login(email, password);
+
+      expect(mockLoginAttemptService.clearAttempts).toHaveBeenCalledWith(email);
     });
   });
 

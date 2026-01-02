@@ -6,6 +6,7 @@ import { User, AuthTokens, TokenPayload } from '../types';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../middleware/auth';
 import { Errors } from '../middleware/errorHandler';
 import { emailService } from './emailService';
+import { loginAttemptService } from './loginAttemptService';
 
 export const authService = {
   async register(email: string, password: string, name?: string): Promise<{ user: Omit<User, 'password_hash'>; tokens: AuthTokens }> {
@@ -90,7 +91,15 @@ export const authService = {
     return { user, tokens };
   },
 
-  async login(email: string, password: string): Promise<{ user: Omit<User, 'password_hash'>; tokens: AuthTokens }> {
+  async login(email: string, password: string, ipAddress?: string): Promise<{ user: Omit<User, 'password_hash'>; tokens: AuthTokens }> {
+    // Check if account is locked due to too many failed attempts
+    const lockStatus = await loginAttemptService.isLocked(email);
+    if (lockStatus.locked) {
+      throw Errors.tooManyRequests(
+        `Account temporarily locked. Try again in ${lockStatus.remainingMinutes} minute(s).`
+      );
+    }
+
     // Find user
     const result = await query(
       `SELECT id, email, password_hash, name, role, is_active
@@ -100,6 +109,8 @@ export const authService = {
     );
 
     if (result.rows.length === 0) {
+      // Record failed attempt even for non-existent users to prevent enumeration
+      await loginAttemptService.recordFailedAttempt(email, ipAddress || 'unknown');
       throw Errors.unauthorized('Invalid email or password');
     }
 
@@ -112,8 +123,13 @@ export const authService = {
     // Verify password
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
+      // Record failed attempt
+      await loginAttemptService.recordFailedAttempt(email, ipAddress || 'unknown');
       throw Errors.unauthorized('Invalid email or password');
     }
+
+    // Clear failed attempts on successful login
+    await loginAttemptService.clearAttempts(email);
 
     // Generate tokens
     const tokenPayload: TokenPayload = {

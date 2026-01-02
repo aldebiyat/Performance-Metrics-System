@@ -25,6 +25,7 @@ export const Errors = {
   badRequest: (message = 'Bad request') => new AppError(message, 400, 'BAD_REQUEST'),
   conflict: (message = 'Conflict') => new AppError(message, 409, 'CONFLICT'),
   validation: (message = 'Validation error') => new AppError(message, 422, 'VALIDATION_ERROR'),
+  tooManyRequests: (message = 'Too many requests') => new AppError(message, 429, 'TOO_MANY_REQUESTS'),
   internal: (message = 'Internal server error') => new AppError(message, 500, 'INTERNAL_ERROR'),
 };
 
