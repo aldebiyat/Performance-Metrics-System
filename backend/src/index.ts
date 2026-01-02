@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/node';
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -98,8 +98,30 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Health check endpoints
 app.use('/api/health', healthRoutes);
 
+// Metrics endpoint authentication
+const metricsAuth = (req: Request, res: Response, next: NextFunction) => {
+  const metricsToken = process.env.METRICS_TOKEN;
+
+  // If no token configured, only allow internal/localhost access
+  if (!metricsToken) {
+    const clientIp = req.ip || req.socket.remoteAddress || '';
+    if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.includes('172.') || clientIp.includes('10.') || clientIp.includes('192.168.')) {
+      return next();
+    }
+    return res.status(403).json({ error: 'Metrics endpoint restricted to internal access' });
+  }
+
+  // Check bearer token
+  const authHeader = req.headers.authorization;
+  if (authHeader === `Bearer ${metricsToken}`) {
+    return next();
+  }
+
+  res.status(401).json({ error: 'Unauthorized' });
+};
+
 // Prometheus metrics endpoint (for scraping)
-app.use('/metrics', prometheusMetricsRoutes);
+app.use('/metrics', metricsAuth, prometheusMetricsRoutes);
 
 // Routes
 app.use('/api/auth', authRoutes);
