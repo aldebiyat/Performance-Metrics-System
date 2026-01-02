@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { query } from '../config/database';
+import { query, withTransaction, createTransactionalQuery } from '../config/database';
 import { config } from '../config/constants';
 import { User, AuthTokens, TokenPayload } from '../types';
 import { generateAccessToken, generateRefreshToken, verifyToken } from '../middleware/auth';
@@ -9,7 +9,7 @@ import { emailService } from './emailService';
 
 export const authService = {
   async register(email: string, password: string, name?: string): Promise<{ user: Omit<User, 'password_hash'>; tokens: AuthTokens }> {
-    // Check if user exists
+    // Check if user exists (read-only, outside transaction)
     const existingUser = await query(
       'SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL',
       [email.toLowerCase()]
@@ -19,46 +19,73 @@ export const authService = {
       throw Errors.conflict('Email already registered');
     }
 
-    // Validate password strength
+    // Validate password strength (outside transaction)
     if (password.length < 8) {
       throw Errors.validation('Password must be at least 8 characters');
     }
 
-    // Hash password
+    // Hash password (outside transaction)
     const passwordHash = await bcrypt.hash(password, config.saltRounds);
 
-    // Generate verification token
+    // Generate verification token (outside transaction)
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
     const verificationTokenExpires = new Date();
     verificationTokenExpires.setHours(verificationTokenExpires.getHours() + config.verificationTokenHours);
 
-    // Insert user with verification token
-    const result = await query(
-      `INSERT INTO users (email, password_hash, name, role, email_verified, verification_token, verification_token_expires)
-       VALUES ($1, $2, $3, 'viewer', false, $4, $5)
-       RETURNING id, email, name, role, is_active, email_verified, created_at, updated_at`,
-      [email.toLowerCase(), passwordHash, name || null, verificationTokenHash, verificationTokenExpires]
-    );
+    // Use transaction for user creation + token storage (atomic operations)
+    const { user, tokens } = await withTransaction(async (client) => {
+      const txQuery = createTransactionalQuery(client);
 
-    const user = result.rows[0];
+      // Insert user with verification token
+      const result = await txQuery(
+        `INSERT INTO users (email, password_hash, name, role, email_verified, verification_token, verification_token_expires)
+         VALUES ($1, $2, $3, 'viewer', false, $4, $5)
+         RETURNING id, email, name, role, is_active, email_verified, created_at, updated_at`,
+        [email.toLowerCase(), passwordHash, name || null, verificationTokenHash, verificationTokenExpires]
+      );
 
-    // Send verification email
+      const newUser = result.rows[0];
+
+      // Generate tokens
+      const tokenPayload: TokenPayload = {
+        userId: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      };
+
+      const accessToken = generateAccessToken(tokenPayload);
+      const refreshToken = generateRefreshToken(tokenPayload);
+
+      // Store refresh token hash
+      const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + config.refreshTokenDays);
+
+      await txQuery(
+        'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+        [newUser.id, tokenHash, expiresAt]
+      );
+
+      // Clean up expired tokens for this user
+      await txQuery(
+        'DELETE FROM refresh_tokens WHERE user_id = $1 AND expires_at < NOW()',
+        [newUser.id]
+      );
+
+      return {
+        user: newUser,
+        tokens: { accessToken, refreshToken },
+      };
+    });
+
+    // Send verification email (side effect, outside transaction)
     try {
       await emailService.sendVerificationEmail(user.email, verificationToken);
     } catch (error) {
       // Log error but don't fail registration
       console.error('Failed to send verification email:', error);
     }
-
-    // Generate tokens
-    const tokenPayload: TokenPayload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
-    const tokens = await this.createTokens(tokenPayload);
 
     return { user, tokens };
   },

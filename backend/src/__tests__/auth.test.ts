@@ -2,8 +2,15 @@ import bcrypt from 'bcrypt';
 import { AppError } from '../middleware/errorHandler';
 
 // Mock database module
+const mockTxQuery = jest.fn();
 jest.mock('../config/database', () => ({
   query: jest.fn(),
+  withTransaction: jest.fn((callback) => {
+    // Create a mock client object
+    const mockClient = {};
+    return callback(mockClient);
+  }),
+  createTransactionalQuery: jest.fn(() => mockTxQuery),
 }));
 
 // Mock email service
@@ -23,6 +30,7 @@ const mockQuery = query as jest.MockedFunction<typeof query>;
 describe('Auth Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockTxQuery.mockReset();
   });
 
   describe('register', () => {
@@ -31,11 +39,11 @@ describe('Auth Service', () => {
       const password = 'securePassword123';
       const name = 'Test User';
 
-      // Mock: no existing user
+      // Mock: no existing user (outside transaction)
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
 
-      // Mock: insert user
-      mockQuery.mockResolvedValueOnce({
+      // Mock: insert user (inside transaction)
+      mockTxQuery.mockResolvedValueOnce({
         rows: [{
           id: 1,
           email: email.toLowerCase(),
@@ -49,11 +57,11 @@ describe('Auth Service', () => {
         rowCount: 1,
       } as any);
 
-      // Mock: insert refresh token
-      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 } as any);
+      // Mock: insert refresh token (inside transaction)
+      mockTxQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 } as any);
 
-      // Mock: cleanup expired tokens
-      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
+      // Mock: cleanup expired tokens (inside transaction)
+      mockTxQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
 
       const result = await authService.register(email, password, name);
 
