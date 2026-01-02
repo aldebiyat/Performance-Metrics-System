@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { importService } from '../services/importService';
 import { auditService } from '../services/auditService';
@@ -36,6 +36,45 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
+
+// Validate CSV file content (after multer parses)
+const validateCSVContent = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.file) {
+    return next();
+  }
+
+  const buffer = req.file.buffer;
+
+  // Check for common binary file signatures that indicate non-CSV
+  const signatures = [
+    { bytes: [0x50, 0x4B], name: 'ZIP/Office' },
+    { bytes: [0x25, 0x50, 0x44, 0x46], name: 'PDF' },
+    { bytes: [0x89, 0x50, 0x4E, 0x47], name: 'PNG' },
+    { bytes: [0xFF, 0xD8, 0xFF], name: 'JPEG' },
+    { bytes: [0x47, 0x49, 0x46], name: 'GIF' },
+  ];
+
+  for (const sig of signatures) {
+    if (sig.bytes.every((byte, i) => buffer[i] === byte)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `Invalid file type: detected ${sig.name} format, expected CSV` }
+      });
+    }
+  }
+
+  // Check first 1000 bytes for binary content (non-printable characters)
+  const sample = buffer.slice(0, 1000).toString('utf-8');
+  const binaryPattern = /[\x00-\x08\x0E-\x1F]/;
+  if (binaryPattern.test(sample)) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Invalid CSV file: contains binary or non-text content' }
+    });
+  }
+
+  next();
+};
 
 /**
  * @swagger
@@ -132,6 +171,7 @@ router.post(
       next();
     });
   },
+  validateCSVContent,
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
       throw Errors.badRequest('No file uploaded');
