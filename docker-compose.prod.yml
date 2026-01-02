@@ -1,32 +1,82 @@
-# Production overrides - use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
-# This file removes exposed ports for databases and requires explicit environment variables
+# ============================================
+# pms (Performance Metrics System) - Production Overrides
+# ============================================
+# Usage: docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================
 
 services:
+  # ==========================================
+  # PostgreSQL - Production Configuration
+  # ==========================================
   postgres:
+    restart: always
     ports: !reset []
     environment:
-      POSTGRES_USER: ${DB_USER:?DB_USER is required}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
-      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
-    restart: unless-stopped
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
 
+  # ==========================================
+  # Redis - Production Configuration
+  # ==========================================
   redis:
+    restart: always
     ports: !reset []
-    restart: unless-stopped
+    command: redis-server --appendonly yes
 
+  # ==========================================
+  # Backend - Production Configuration
+  # ==========================================
   backend:
+    build:
+      target: production
+    restart: always
     environment:
       NODE_ENV: production
-      PORT: 5001
+      PORT: ${BACKEND_PORT:?BACKEND_PORT is required}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:?DB_NAME is required}
-      DB_USER: ${DB_USER:?DB_USER is required}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${POSTGRES_DB:?POSTGRES_DB is required}
+      DB_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
+      JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
-    restart: unless-stopped
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      COMPRESSION_THRESHOLD: ${COMPRESSION_THRESHOLD:-1024}
+      COMPRESSION_LEVEL: ${COMPRESSION_LEVEL:-6}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${BACKEND_PORT:-3200}/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
 
+  # ==========================================
+  # Frontend - Production Configuration
+  # ==========================================
   frontend:
-    restart: unless-stopped
+    build:
+      target: production
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:?REACT_APP_API_URL is required}
+        REACT_APP_SENTRY_DSN: ${REACT_APP_SENTRY_DSN:-}
+    restart: always
+    environment:
+      NODE_ENV: production
+    volumes: []
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3

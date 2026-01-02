@@ -1,26 +1,45 @@
+# ============================================
+# pms (Performance Metrics System) - Docker Compose Configuration
+# ============================================
+# Usage:
+#   Development: docker-compose --env-file .env.docker up
+#   Production:  docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================
+
 services:
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
   postgres:
     image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-pms}-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-performance_metrics}
+      POSTGRES_USER: ${POSTGRES_USER:-pms_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pms_password}
+      POSTGRES_DB: ${POSTGRES_DB:-pms_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5435}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pms_user} -d ${POSTGRES_DB:-pms_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - internal-network
+      - shared-db-network
 
+  # ==========================================
+  # Redis Cache
+  # ==========================================
   redis:
     image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-pms}-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -28,43 +47,102 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - internal-network
 
+  # ==========================================
+  # Backend Service (Express.js)
+  # ==========================================
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
+      target: development
+    container_name: ${COMPOSE_PROJECT_NAME:-pms}-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      PORT: 5001
+      NODE_ENV: development
+      PORT: ${BACKEND_PORT:-3200}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-performance_metrics}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${POSTGRES_DB:-pms_db}
+      DB_USER: ${POSTGRES_USER:-pms_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pms_password}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-in-production}
+      JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
+      JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
       REDIS_URL: redis://redis:6379
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3201}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3201}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      COMPRESSION_THRESHOLD: ${COMPRESSION_THRESHOLD:-1024}
+      COMPRESSION_LEVEL: ${COMPRESSION_LEVEL:-6}
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
     ports:
-      - "5001:5001"
+      - "${BACKEND_PORT:-3200}:${BACKEND_PORT:-3200}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - internal-network
 
+  # ==========================================
+  # Frontend Service (React)
+  # ==========================================
   frontend:
     build:
-      context: .
-      dockerfile: react-app/Dockerfile
+      context: ./react-app
+      dockerfile: Dockerfile
+      target: development
       args:
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5001}
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3200}
+        REACT_APP_SENTRY_DSN: ${REACT_APP_SENTRY_DSN:-}
+    container_name: ${COMPOSE_PROJECT_NAME:-pms}-frontend
     restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3200}
+      REACT_APP_SENTRY_DSN: ${REACT_APP_SENTRY_DSN:-}
+      PORT: ${FRONTEND_PORT:-3201}
+    volumes:
+      - ./react-app:/app
+      - /app/node_modules
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3201}:${FRONTEND_PORT:-3201}"
     depends_on:
       - backend
+    networks:
+      - internal-network
 
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  internal-network:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-pms}-network
+  shared-db-network:
+    external: true
+    name: shared-database-network
+
+# ==========================================
+# Volumes
+# ==========================================
 volumes:
   postgres_data:
+    name: ${COMPOSE_PROJECT_NAME:-pms}-postgres-data
   redis_data:
+    name: ${COMPOSE_PROJECT_NAME:-pms}-redis-data
+  backend_uploads:
+    name: ${COMPOSE_PROJECT_NAME:-pms}-backend-uploads
+  backend_logs:
+    name: ${COMPOSE_PROJECT_NAME:-pms}-backend-logs
