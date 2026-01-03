@@ -48,6 +48,8 @@ export const query = async (text: string, params?: QueryParam[]) => {
 
 export const getClient = () => pool.connect();
 
+export const getPool = () => pool;
+
 /**
  * Creates a query function bound to a specific client for use within transactions.
  * This allows queries to participate in the transaction using the client's connection.

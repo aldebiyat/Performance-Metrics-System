@@ -1,9 +1,10 @@
 import crypto from 'crypto';
-import { query } from '../config/database';
+import { query, getPool } from '../config/database';
 import logger from '../config/logger';
 
 let auditFailureCount = 0;
 const AUDIT_FAILURE_THRESHOLD = 5;
+const GENESIS_HASH = 'genesis';
 
 interface AuditParams {
   userId?: number;
@@ -54,14 +55,22 @@ const computeEntryHash = (entry: AuditLogEntry): string => {
 
 export const auditService = {
   async log(params: AuditParams): Promise<AuditLogEntry | undefined> {
+    const client = await getPool().connect();
+
     try {
+      await client.query('BEGIN');
+
+      // Use advisory lock to serialize audit log inserts
+      await client.query('SELECT pg_advisory_xact_lock($1)', [1234567890]);
+
       // Get hash of previous entry
-      const lastEntry = await query(
+      const lastEntry = await client.query(
         'SELECT entry_hash FROM audit_logs ORDER BY id DESC LIMIT 1'
       );
-      const previousHash = lastEntry.rows[0]?.entry_hash || 'genesis';
+      const previousHash = lastEntry.rows[0]?.entry_hash || GENESIS_HASH;
 
-      const result = await query(
+      // Insert new entry
+      const result = await client.query(
         `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, previous_hash)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING *`,
@@ -82,11 +91,17 @@ export const auditService = {
 
       // Compute and store hash
       const entryHash = computeEntryHash(entry);
-      await query('UPDATE audit_logs SET entry_hash = $1 WHERE id = $2', [entryHash, entry.id]);
+      await client.query(
+        'UPDATE audit_logs SET entry_hash = $1 WHERE id = $2',
+        [entryHash, entry.id]
+      );
+
+      await client.query('COMMIT');
 
       auditFailureCount = 0;
       return { ...entry, entry_hash: entryHash };
     } catch (error) {
+      await client.query('ROLLBACK');
       auditFailureCount++;
       logger.error('Failed to create audit log', { params, error, failureCount: auditFailureCount });
       if (auditFailureCount >= AUDIT_FAILURE_THRESHOLD) {
@@ -96,28 +111,43 @@ export const auditService = {
         });
       }
       return undefined;
+    } finally {
+      client.release();
     }
   },
 
-  async verifyIntegrity(): Promise<IntegrityResult> {
-    const entries = await query('SELECT * FROM audit_logs ORDER BY id ASC');
+  async verifyIntegrity(batchSize = 10000): Promise<IntegrityResult> {
     const errors: string[] = [];
-    let previousHash = 'genesis';
+    let previousHash = GENESIS_HASH;
+    let offset = 0;
+    let totalChecked = 0;
 
-    for (const entry of entries.rows as AuditLogEntry[]) {
-      if (entry.previous_hash !== previousHash) {
-        errors.push(`Entry ${entry.id}: previous_hash mismatch`);
+    while (true) {
+      const batch = await query(
+        'SELECT * FROM audit_logs ORDER BY id ASC LIMIT $1 OFFSET $2',
+        [batchSize, offset]
+      );
+
+      if (batch.rows.length === 0) break;
+
+      for (const entry of batch.rows as AuditLogEntry[]) {
+        if (entry.previous_hash !== previousHash) {
+          errors.push(`Entry ${entry.id}: previous_hash mismatch`);
+        }
+        const computed = computeEntryHash(entry);
+        if (entry.entry_hash !== computed) {
+          errors.push(`Entry ${entry.id}: entry_hash mismatch (tampering detected)`);
+        }
+        previousHash = entry.entry_hash;
+        totalChecked++;
       }
-      const computed = computeEntryHash(entry);
-      if (entry.entry_hash !== computed) {
-        errors.push(`Entry ${entry.id}: entry_hash mismatch (tampering detected)`);
-      }
-      previousHash = entry.entry_hash;
+
+      offset += batchSize;
     }
 
     return {
       valid: errors.length === 0,
-      entriesChecked: entries.rows.length,
+      entriesChecked: totalChecked,
       errors,
     };
   },
