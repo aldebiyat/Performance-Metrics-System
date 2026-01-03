@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authService } from '../services/authService';
 import { auditService } from '../services/auditService';
+import { sessionService } from '../services/sessionService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate, verifyToken } from '../middleware/auth';
 import { authLimiter } from '../middleware/rateLimiter';
@@ -173,6 +174,9 @@ router.post(
     const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
 
     const { user, tokens } = await authService.login(email, password, ipAddress);
+
+    // Enforce concurrent session limit - invalidates oldest session if at limit
+    await sessionService.createSessionWithLimit(user.id, tokens.refreshToken);
 
     await auditService.log({
       userId: user.id,
