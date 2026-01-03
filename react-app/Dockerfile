@@ -67,9 +67,20 @@ CMD ["/bin/sh", "-c", "envsubst '${CSP_CONNECT_SRC}' < /etc/nginx/templates/defa
 FROM node:20-alpine AS development
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
+
+# Create non-root user for security (same as production)
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
+
+# Set ownership
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 # Development uses React dev server
 ARG PORT=3201
