@@ -3,11 +3,8 @@ import logger from '../config/logger';
 
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
-  const requestId = req.headers['x-request-id'] as string || crypto.randomUUID();
-
-  // Attach request ID to request object
-  req.requestId = requestId;
-  res.setHeader('X-Request-ID', requestId);
+  const requestId = req.headers['x-request-id'] as string;
+  // req.requestId and response header already set by requestIdMiddleware
 
   res.on('finish', () => {
     const duration = Date.now() - start;
