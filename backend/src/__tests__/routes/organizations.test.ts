@@ -252,4 +252,89 @@ describe('Organizations Route - DELETE /:id', () => {
       expect(mockQuery.mock.calls[0][0]).not.toContain('DELETE');
     });
   });
+
+  describe('L-2: Token cleanup with cached member list', () => {
+    it('should invalidate tokens for members after successful deletion', async () => {
+      /**
+       * L-2 Fix: Member list must be cached BEFORE deletion because
+       * organization_members relationship may be cascade-deleted when
+       * the organization is deleted, making post-deletion lookup impossible.
+       *
+       * Order: Get members -> Delete org -> Delete tokens (using cached list)
+       */
+      const memberUserIds = [101, 102, 103];
+
+      // Step 1: Cache member list (done BEFORE org deletion)
+      mockQuery.mockResolvedValueOnce({
+        rows: memberUserIds.map(id => ({ user_id: id })),
+        rowCount: memberUserIds.length,
+      } as any);
+
+      // Step 2: Organization deletion succeeds (may cascade delete org_members)
+      mockDeleteOrganization.mockResolvedValueOnce(undefined);
+
+      // Step 3: Token deletion uses cached member list
+      mockQuery.mockResolvedValueOnce({
+        rows: [],
+        rowCount: memberUserIds.length,
+      } as any);
+
+      const result = await deleteOrganizationHandler(456, 101);
+
+      // Verify member list was fetched FIRST
+      expect(mockQuery.mock.calls[0][0]).toContain('SELECT user_id FROM organization_members');
+      expect(mockQuery.mock.calls[0][1]).toEqual([456]);
+
+      // Verify tokens deleted using cached member IDs (not a post-deletion query)
+      expect(mockQuery.mock.calls[1][0]).toContain('DELETE FROM refresh_tokens WHERE user_id = ANY($1)');
+      expect(mockQuery.mock.calls[1][1]).toEqual([memberUserIds]);
+
+      expect(result).toEqual({ message: 'Organization deleted successfully' });
+    });
+
+    it('should handle bulk token deletion efficiently with ANY($1)', async () => {
+      // Large member list to verify bulk deletion
+      const memberUserIds = Array.from({ length: 50 }, (_, i) => i + 1);
+
+      mockQuery.mockResolvedValueOnce({
+        rows: memberUserIds.map(id => ({ user_id: id })),
+        rowCount: memberUserIds.length,
+      } as any);
+
+      mockDeleteOrganization.mockResolvedValueOnce(undefined);
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [],
+        rowCount: memberUserIds.length,
+      } as any);
+
+      await deleteOrganizationHandler(789, 1);
+
+      // Verify single bulk deletion query with ANY
+      const tokenDeleteCall = mockQuery.mock.calls[1];
+      expect(tokenDeleteCall[0]).toContain('ANY($1)');
+      expect(tokenDeleteCall[1]).toEqual([memberUserIds]);
+
+      // Should be exactly 2 queries: get members, delete tokens
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+    });
+
+    it('should skip token deletion when organization has no members', async () => {
+      // Edge case: organization with no members (unusual but possible)
+      mockQuery.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+      } as any);
+
+      mockDeleteOrganization.mockResolvedValueOnce(undefined);
+
+      const result = await deleteOrganizationHandler(999, 1);
+
+      // Should only query for members, skip token deletion
+      expect(mockQuery).toHaveBeenCalledTimes(1);
+      expect(mockQuery.mock.calls[0][0]).toContain('SELECT user_id FROM organization_members');
+
+      expect(result).toEqual({ message: 'Organization deleted successfully' });
+    });
+  });
 });
