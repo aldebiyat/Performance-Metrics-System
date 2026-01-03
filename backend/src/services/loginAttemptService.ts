@@ -53,9 +53,9 @@ export const loginAttemptService = {
 
       return { locked: false };
     } catch (error) {
-      // If check fails, don't lock out (fail open for availability)
-      logger.warn('Failed to check account lock status', { email, error });
-      return { locked: false };
+      // FAIL-CLOSED: Cannot verify lockout status, block login attempt
+      logger.error('Login lockout check failed:', { email, error });
+      return { locked: true };
     }
   },
 

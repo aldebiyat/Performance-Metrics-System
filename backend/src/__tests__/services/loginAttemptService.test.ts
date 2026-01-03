@@ -3,6 +3,32 @@ import { query } from '../../config/database';
 
 jest.mock('../../config/database');
 
+describe('loginAttemptService fail-closed', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return locked true when database query fails', async () => {
+    (query as jest.Mock).mockRejectedValue(new Error('Database connection failed'));
+
+    const result = await loginAttemptService.isLocked('test@example.com');
+
+    // Should fail-closed: treat as locked when cannot verify
+    expect(result.locked).toBe(true);
+  });
+
+  it('should return locked false when database is available and user not locked out', async () => {
+    // User not locked out - below MAX_ATTEMPTS (5)
+    (query as jest.Mock).mockResolvedValue({
+      rows: [{ attempt_count: '2', last_attempt: null }],
+      rowCount: 1,
+    });
+
+    const result = await loginAttemptService.isLocked('test@example.com');
+    expect(result.locked).toBe(false);
+  });
+});
+
 describe('loginAttemptService SQL safety', () => {
   beforeEach(() => {
     jest.clearAllMocks();
