@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { query } from '../config/database';
 import logger from '../config/logger';
 
@@ -15,12 +16,55 @@ interface AuditParams {
   userAgent?: string;
 }
 
+interface AuditLogEntry {
+  id: number;
+  user_id: number | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: number | null;
+  old_values: object | null;
+  new_values: object | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: Date;
+  previous_hash: string;
+  entry_hash: string;
+}
+
+interface IntegrityResult {
+  valid: boolean;
+  entriesChecked: number;
+  errors: string[];
+}
+
+const computeEntryHash = (entry: AuditLogEntry): string => {
+  const data = JSON.stringify({
+    id: entry.id,
+    user_id: entry.user_id,
+    action: entry.action,
+    entity_type: entry.entity_type,
+    entity_id: entry.entity_id,
+    old_values: entry.old_values,
+    new_values: entry.new_values,
+    created_at: entry.created_at,
+    previous_hash: entry.previous_hash,
+  });
+  return crypto.createHash('sha256').update(data).digest('hex');
+};
+
 export const auditService = {
-  async log(params: AuditParams): Promise<void> {
+  async log(params: AuditParams): Promise<AuditLogEntry | undefined> {
     try {
-      await query(
-        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      // Get hash of previous entry
+      const lastEntry = await query(
+        'SELECT entry_hash FROM audit_logs ORDER BY id DESC LIMIT 1'
+      );
+      const previousHash = lastEntry.rows[0]?.entry_hash || 'genesis';
+
+      const result = await query(
+        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, previous_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
         [
           params.userId || null,
           params.action,
@@ -30,9 +74,18 @@ export const auditService = {
           params.newValues ? JSON.stringify(params.newValues) : null,
           params.ipAddress || null,
           params.userAgent || null,
+          previousHash,
         ]
       );
+
+      const entry = result.rows[0] as AuditLogEntry;
+
+      // Compute and store hash
+      const entryHash = computeEntryHash(entry);
+      await query('UPDATE audit_logs SET entry_hash = $1 WHERE id = $2', [entryHash, entry.id]);
+
       auditFailureCount = 0;
+      return { ...entry, entry_hash: entryHash };
     } catch (error) {
       auditFailureCount++;
       logger.error('Failed to create audit log', { params, error, failureCount: auditFailureCount });
@@ -42,7 +95,31 @@ export const auditService = {
           threshold: AUDIT_FAILURE_THRESHOLD,
         });
       }
+      return undefined;
     }
+  },
+
+  async verifyIntegrity(): Promise<IntegrityResult> {
+    const entries = await query('SELECT * FROM audit_logs ORDER BY id ASC');
+    const errors: string[] = [];
+    let previousHash = 'genesis';
+
+    for (const entry of entries.rows as AuditLogEntry[]) {
+      if (entry.previous_hash !== previousHash) {
+        errors.push(`Entry ${entry.id}: previous_hash mismatch`);
+      }
+      const computed = computeEntryHash(entry);
+      if (entry.entry_hash !== computed) {
+        errors.push(`Entry ${entry.id}: entry_hash mismatch (tampering detected)`);
+      }
+      previousHash = entry.entry_hash;
+    }
+
+    return {
+      valid: errors.length === 0,
+      entriesChecked: entries.rows.length,
+      errors,
+    };
   },
 
   async getAuditLogs(options: { page?: number; limit?: number; userId?: number; action?: string }) {
