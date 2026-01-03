@@ -19,6 +19,7 @@ import prometheusMetricsRoutes from './routes/metrics-prom';
 import exportRoutes from './routes/export';
 import { metricsMiddleware } from './middleware/metrics';
 import { metricsAuth } from './middleware/metricsAuth';
+import { csrfProtection } from './middleware/csrf';
 import importRoutes from './routes/import';
 import passwordResetRoutes from './routes/passwordReset';
 import adminRoutes from './routes/admin';
@@ -65,7 +66,7 @@ const corsOptions = {
     || ['http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 };
 
 app.use(cors(corsOptions));
@@ -129,6 +130,9 @@ app.use(helmet.contentSecurityPolicy({
 
 // Apply rate limiting to all API routes
 app.use('/api', apiLimiter);
+
+// Apply CSRF protection to API routes (after cookie parser, before routes)
+app.use('/api', csrfProtection);
 
 // Swagger API documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
