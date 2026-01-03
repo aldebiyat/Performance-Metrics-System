@@ -8,13 +8,15 @@ describe('loginAttemptService fail-closed', () => {
     jest.clearAllMocks();
   });
 
-  it('should return locked true when database query fails', async () => {
+  it('should return locked true with remainingMinutes when database query fails', async () => {
     (query as jest.Mock).mockRejectedValue(new Error('Database connection failed'));
 
     const result = await loginAttemptService.isLocked('test@example.com');
 
     // Should fail-closed: treat as locked when cannot verify
     expect(result.locked).toBe(true);
+    // Should include remainingMinutes for proper error messaging
+    expect(result.remainingMinutes).toBe(15);
   });
 
   it('should return locked false when database is available and user not locked out', async () => {

@@ -55,7 +55,7 @@ export const loginAttemptService = {
     } catch (error) {
       // FAIL-CLOSED: Cannot verify lockout status, block login attempt
       logger.error('Login lockout check failed:', { email, error });
-      return { locked: true };
+      return { locked: true, remainingMinutes: LOCKOUT_MINUTES };
     }
   },
 
