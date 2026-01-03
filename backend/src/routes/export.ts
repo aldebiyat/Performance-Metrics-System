@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { DateRange } from '../types';
 import { validate, exportQuerySchema, CategoryFilter } from '../validators';
+import { sanitizeFilename } from '../utils/filenameSanitizer';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ router.get(
     const { content, filename } = await exportService.generateCSV(category, range);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(filename)}"`);
     res.send(content);
   })
 );
@@ -114,7 +115,7 @@ router.get(
     const { buffer, filename } = await exportService.generatePDF(category, range);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(filename)}"`);
     res.send(buffer);
   })
 );
