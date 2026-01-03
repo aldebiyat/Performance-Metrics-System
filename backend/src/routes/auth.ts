@@ -4,6 +4,7 @@ import { auditService } from '../services/auditService';
 import { asyncHandler, Errors } from '../middleware/errorHandler';
 import { authenticate, verifyToken } from '../middleware/auth';
 import { authLimiter } from '../middleware/rateLimiter';
+import { generateCsrfToken, setCsrfCookie } from '../middleware/csrf';
 import { ApiResponse } from '../types';
 import { validate, registerSchema, loginSchema, refreshTokenSchema } from '../validators';
 
@@ -102,9 +103,13 @@ router.post(
     // Set refresh token as httpOnly cookie
     setRefreshTokenCookie(res, tokens.refreshToken);
 
-    const response: ApiResponse<typeof user & { accessToken: string }> = {
+    // Generate and set CSRF token for authenticated session
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(res, csrfToken);
+
+    const response: ApiResponse<typeof user & { accessToken: string; csrfToken: string }> = {
       success: true,
-      data: { ...user, accessToken: tokens.accessToken },
+      data: { ...user, accessToken: tokens.accessToken, csrfToken },
     };
 
     res.status(201).json(response);
@@ -181,9 +186,13 @@ router.post(
     // Set refresh token as httpOnly cookie
     setRefreshTokenCookie(res, tokens.refreshToken);
 
-    const response: ApiResponse<typeof user & { accessToken: string }> = {
+    // Generate and set CSRF token for authenticated session
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(res, csrfToken);
+
+    const response: ApiResponse<typeof user & { accessToken: string; csrfToken: string }> = {
       success: true,
-      data: { ...user, accessToken: tokens.accessToken },
+      data: { ...user, accessToken: tokens.accessToken, csrfToken },
     };
 
     res.json(response);
@@ -526,6 +535,45 @@ router.post(
     const response: ApiResponse<typeof result> = {
       success: true,
       data: result,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * @swagger
+ * /api/auth/csrf-token:
+ *   get:
+ *     summary: Get a new CSRF token
+ *     description: Issues a new CSRF token. The token is returned in the response body and also set as a cookie. Use this endpoint to refresh the CSRF token for authenticated sessions.
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: CSRF token issued successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     csrfToken:
+ *                       type: string
+ *                       description: CSRF token to include in X-CSRF-Token header for state-changing requests
+ */
+router.get(
+  '/csrf-token',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(res, csrfToken);
+
+    const response: ApiResponse<{ csrfToken: string }> = {
+      success: true,
+      data: { csrfToken },
     };
 
     res.json(response);

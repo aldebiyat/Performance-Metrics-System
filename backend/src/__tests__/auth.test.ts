@@ -85,6 +85,7 @@ describe('Auth Service', () => {
       expect(result.user.role).toBe('viewer');
       expect(result.tokens.accessToken).toBeDefined();
       expect(result.tokens.refreshToken).toBeDefined();
+      // Note: CSRF token is issued in the route handler, not the service
     });
 
     it('should throw conflict error when email already exists', async () => {
