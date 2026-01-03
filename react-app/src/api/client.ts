@@ -1,6 +1,10 @@
 import { ApiResponse, AuthTokens } from '../types';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+const API_URL = process.env.REACT_APP_API_URL;
+
+if (!API_URL) {
+  throw new Error('REACT_APP_API_URL environment variable is required');
+}
 
 // Token management - access token is kept in memory for security
 let accessToken: string | null = null;
