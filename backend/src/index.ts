@@ -20,6 +20,7 @@ import exportRoutes from './routes/export';
 import { metricsMiddleware } from './middleware/metrics';
 import { metricsAuth } from './middleware/metricsAuth';
 import { csrfProtection } from './middleware/csrf';
+import { requestIdMiddleware } from './middleware/requestId';
 import importRoutes from './routes/import';
 import passwordResetRoutes from './routes/passwordReset';
 import adminRoutes from './routes/admin';
@@ -44,6 +45,9 @@ const app = express();
 // Set to number (1-5) for proxy hops, or 'loopback' for localhost only
 const trustProxy = process.env.TRUST_PROXY || '1';
 app.set('trust proxy', /^\d+$/.test(trustProxy) ? parseInt(trustProxy, 10) : trustProxy);
+
+// Add request ID tracking (before other middleware)
+app.use(requestIdMiddleware);
 
 // Compression middleware - compress responses for better performance
 app.use(compression({
