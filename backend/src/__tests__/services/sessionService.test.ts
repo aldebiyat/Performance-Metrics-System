@@ -40,11 +40,11 @@ describe('sessionService', () => {
     });
   });
 
-  describe('createSessionWithLimit', () => {
-    it('should not invalidate any session when under limit', async () => {
+  describe('enforceSessionLimit', () => {
+    it('should not delete any session when under limit', async () => {
       (query as jest.Mock).mockResolvedValue({ rows: [{ count: '3' }] });
 
-      await sessionService.createSessionWithLimit(1, 'new-token-id');
+      await sessionService.enforceSessionLimit(1);
 
       // Should only check count, not delete anything
       expect(query).toHaveBeenCalledTimes(1);
@@ -54,56 +54,71 @@ describe('sessionService', () => {
       );
     });
 
-    it('should invalidate oldest session when at limit', async () => {
+    it('should delete 1 session when at limit (count = 5)', async () => {
       (query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ count: '5' }] }) // Count check
-        .mockResolvedValueOnce({ rows: [{ id: 'oldest-token-id' }] }) // Find oldest
-        .mockResolvedValueOnce({ rows: [] }); // Delete oldest
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'oldest-token-id' }] }); // Delete
 
-      await sessionService.createSessionWithLimit(1, 'new-token-id');
+      await sessionService.enforceSessionLimit(1);
 
-      // Should delete the oldest token
+      // Should delete 1 session (5 - 5 + 1 = 1)
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining('DELETE FROM refresh_tokens'),
-        ['oldest-token-id']
+        [1, 1]
       );
     });
 
-    it('should invalidate oldest session when over limit', async () => {
+    it('should delete 3 sessions when over limit (count = 7)', async () => {
       (query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ count: '7' }] }) // Count check
-        .mockResolvedValueOnce({ rows: [{ id: 'oldest-token-id' }] }) // Find oldest
-        .mockResolvedValueOnce({ rows: [] }); // Delete oldest
+        .mockResolvedValueOnce({ rowCount: 3, rows: [{ id: '1' }, { id: '2' }, { id: '3' }] }); // Delete
 
-      await sessionService.createSessionWithLimit(1, 'new-token-id');
+      await sessionService.enforceSessionLimit(1);
 
+      // Should delete 3 sessions (7 - 5 + 1 = 3)
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining('DELETE FROM refresh_tokens'),
-        ['oldest-token-id']
+        [1, 3]
       );
     });
 
-    it('should select oldest session by created_at ASC', async () => {
+    it('should delete oldest sessions by created_at ASC', async () => {
       (query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ count: '5' }] })
-        .mockResolvedValueOnce({ rows: [{ id: 'oldest-token-id' }] })
-        .mockResolvedValueOnce({ rows: [] });
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'oldest-token-id' }] });
 
-      await sessionService.createSessionWithLimit(1, 'new-token-id');
+      await sessionService.enforceSessionLimit(1);
 
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining('ORDER BY created_at ASC LIMIT 1'),
+        expect.stringContaining('ORDER BY created_at ASC'),
         expect.anything()
       );
     });
 
-    it('should handle case when no oldest session found gracefully', async () => {
+    it('should use LIMIT $2 for dynamic session removal count', async () => {
       (query as jest.Mock)
-        .mockResolvedValueOnce({ rows: [{ count: '5' }] })
-        .mockResolvedValueOnce({ rows: [] }); // No oldest found (edge case)
+        .mockResolvedValueOnce({ rows: [{ count: '6' }] })
+        .mockResolvedValueOnce({ rowCount: 2, rows: [{ id: '1' }, { id: '2' }] });
 
-      // Should not throw
-      await expect(sessionService.createSessionWithLimit(1, 'new-token-id')).resolves.not.toThrow();
+      await sessionService.enforceSessionLimit(1);
+
+      // Should pass sessionsToRemove (6 - 5 + 1 = 2) as second parameter
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('LIMIT $2'),
+        [1, 2]
+      );
+    });
+
+    it('should log when sessions are invalidated', async () => {
+      (query as jest.Mock)
+        .mockResolvedValueOnce({ rows: [{ count: '7' }] })
+        .mockResolvedValueOnce({ rowCount: 3, rows: [{ id: '1' }, { id: '2' }, { id: '3' }] });
+
+      await sessionService.enforceSessionLimit(42);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('invalidated 3 oldest session(s)')
+      );
     });
   });
 

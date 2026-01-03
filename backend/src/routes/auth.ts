@@ -175,8 +175,8 @@ router.post(
 
     const { user, tokens } = await authService.login(email, password, ipAddress);
 
-    // Enforce concurrent session limit - invalidates oldest session if at limit
-    await sessionService.createSessionWithLimit(user.id, tokens.refreshToken);
+    // Enforce session limit (removes oldest sessions if over limit)
+    await sessionService.enforceSessionLimit(user.id);
 
     await auditService.log({
       userId: user.id,
