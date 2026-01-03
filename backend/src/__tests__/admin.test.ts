@@ -343,21 +343,20 @@ describe('Admin Service', () => {
   });
 
   describe('getStats multi-tenant isolation', () => {
-    it('should only count users/metrics from admin\'s organizations when adminUserId is provided', async () => {
+    it('should filter users by org but return global metrics/categories when adminUserId is provided', async () => {
       // Scenario: Admin user (id: 1) belongs to org 1
-      // Org 1 has 2 users (admin + user2)
-      // Org 2 has 1 user (user3) - should NOT be counted
-      // Total metrics created by users in org 1: 10
-      // Total categories created by users in org 1: 3
+      // Org 1 has 2 users (admin + user2) - user stats are filtered by org
+      // Org 2 has 1 user (user3) - should NOT be counted in user stats
+      // Metrics and categories are GLOBAL (not org-filtered) - all 50 metrics and 5 categories visible
 
-      // Mock queries with organization filtering
+      // Mock queries: user queries filtered, metrics/categories global
       mockQuery
-        .mockResolvedValueOnce({ rows: [{ count: '2' }] } as any)  // totalUsers (filtered)
-        .mockResolvedValueOnce({ rows: [{ count: '2' }] } as any)  // activeUsers (filtered)
-        .mockResolvedValueOnce({ rows: [{ count: '10' }] } as any) // totalMetrics (filtered)
-        .mockResolvedValueOnce({ rows: [{ count: '3' }] } as any)  // totalCategories (filtered)
-        .mockResolvedValueOnce({ rows: [{ count: '1' }] } as any)  // recentSignups (filtered)
-        .mockResolvedValueOnce({                                   // usersByRole (filtered)
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] } as any)  // totalUsers (filtered by org)
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] } as any)  // activeUsers (filtered by org)
+        .mockResolvedValueOnce({ rows: [{ count: '50' }] } as any) // totalMetrics (global - no filter)
+        .mockResolvedValueOnce({ rows: [{ count: '5' }] } as any)  // totalCategories (global - no filter)
+        .mockResolvedValueOnce({ rows: [{ count: '1' }] } as any)  // recentSignups (filtered by org)
+        .mockResolvedValueOnce({                                   // usersByRole (filtered by org)
           rows: [
             { role: 'admin', count: '1' },
             { role: 'viewer', count: '1' },
@@ -368,8 +367,8 @@ describe('Admin Service', () => {
 
       expect(stats.totalUsers).toBe(2);
       expect(stats.activeUsers).toBe(2);
-      expect(stats.totalMetrics).toBe(10);
-      expect(stats.totalCategories).toBe(3);
+      expect(stats.totalMetrics).toBe(50);  // Global count - all metrics visible
+      expect(stats.totalCategories).toBe(5); // Global count - all categories visible
       expect(stats.recentSignups).toBe(1);
       expect(stats.usersByRole).toEqual({
         admin: 1,
@@ -377,15 +376,14 @@ describe('Admin Service', () => {
         viewer: 1,
       });
 
-      // Verify that all queries include organization filtering
+      // Verify that USER-related queries include organization filtering
       const allCalls = mockQuery.mock.calls;
-      // All user-related queries should include organization_members filter
       const userFilteredCalls = allCalls.filter(call =>
         typeof call[0] === 'string' &&
         call[0].includes('organization_members')
       );
-      // Should have filtering on users queries (totalUsers, activeUsers, recentSignups, roleStats)
-      expect(userFilteredCalls.length).toBeGreaterThanOrEqual(4);
+      // Should have filtering on users queries only (totalUsers, activeUsers, recentSignups, roleStats)
+      expect(userFilteredCalls.length).toBe(4);
     });
 
     it('should not filter stats when adminUserId is not provided', async () => {

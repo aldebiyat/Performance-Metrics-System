@@ -168,25 +168,8 @@ export const adminService = {
         )`
       : '';
 
-    // Build organization filter for metrics (by creator user_id)
-    const metricsOrgFilter = adminUserId
-      ? `AND md.user_id IN (
-          SELECT DISTINCT om2.user_id
-          FROM organization_members om1
-          JOIN organization_members om2 ON om1.organization_id = om2.organization_id
-          WHERE om1.user_id = $1
-        )`
-      : '';
-
-    // Build organization filter for categories (by creator user_id)
-    const categoriesOrgFilter = adminUserId
-      ? `AND c.user_id IN (
-          SELECT DISTINCT om2.user_id
-          FROM organization_members om1
-          JOIN organization_members om2 ON om1.organization_id = om2.organization_id
-          WHERE om1.user_id = $1
-        )`
-      : '';
+    // Note: Metrics and categories are global definitions, not tenant-specific.
+    // They don't have user_id columns, so no organization filtering is applied.
 
     const params = adminUserId ? [adminUserId] : [];
 
@@ -206,14 +189,9 @@ export const adminService = {
         `SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL AND u.is_active = true ${userOrgFilter}`,
         params
       ),
-      query(
-        `SELECT COUNT(*) FROM metric_definitions md WHERE md.is_active = true ${metricsOrgFilter}`,
-        params
-      ),
-      query(
-        `SELECT COUNT(*) FROM categories c WHERE 1=1 ${categoriesOrgFilter}`,
-        params
-      ),
+      // Metrics and categories are global - no org filtering needed
+      query('SELECT COUNT(*) FROM metric_definitions WHERE is_active = true'),
+      query('SELECT COUNT(*) FROM categories'),
       query(
         `SELECT COUNT(*) FROM users u
          WHERE u.deleted_at IS NULL AND u.created_at > NOW() - INTERVAL '7 days' ${userOrgFilter}`,
