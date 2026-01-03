@@ -280,7 +280,9 @@ export const importMetrics = async (rows: ParsedRow[]): Promise<ImportResult> =>
         errors.push({
           row: rowNumber,
           field: 'general',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: process.env.NODE_ENV === 'production'
+            ? 'Failed to import row'
+            : (error instanceof Error ? error.message : 'Unknown error'),
         });
         rowsSkipped++;
       }

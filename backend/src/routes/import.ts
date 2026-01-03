@@ -38,9 +38,10 @@ const upload = multer({
 });
 
 // Validate CSV file content (after multer parses)
-const validateCSVContent = (req: Request, res: Response, next: NextFunction) => {
+const validateCSVContent = (req: Request, res: Response, next: NextFunction): void => {
   if (!req.file) {
-    return next();
+    next();
+    return;
   }
 
   const buffer = req.file.buffer;
@@ -56,10 +57,21 @@ const validateCSVContent = (req: Request, res: Response, next: NextFunction) => 
 
   for (const sig of signatures) {
     if (sig.bytes.every((byte, i) => buffer[i] === byte)) {
-      return res.status(400).json({
-        success: false,
-        error: { message: `Invalid file type: detected ${sig.name} format, expected CSV` }
+      // Log detailed error server-side
+      logger.warn('CSV content validation failed: wrong file signature', {
+        filename: req.file.originalname,
+        detectedFormat: sig.name,
       });
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_FILE_FORMAT',
+          message: process.env.NODE_ENV === 'production'
+            ? 'Invalid file format'
+            : `Invalid file type: detected ${sig.name} format, expected CSV`,
+        },
+      });
+      return;
     }
   }
 
@@ -67,10 +79,20 @@ const validateCSVContent = (req: Request, res: Response, next: NextFunction) => 
   const sample = buffer.slice(0, 1000).toString('utf-8');
   const binaryPattern = /[\x00-\x08\x0E-\x1F]/;
   if (binaryPattern.test(sample)) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'Invalid CSV file: contains binary or non-text content' }
+    // Log detailed error server-side
+    logger.warn('CSV content validation failed: binary content detected', {
+      filename: req.file.originalname,
     });
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_FILE_CONTENT',
+        message: process.env.NODE_ENV === 'production'
+          ? 'Invalid file content'
+          : 'Invalid CSV file: contains binary or non-text content',
+      },
+    });
+    return;
   }
 
   next();
@@ -140,7 +162,7 @@ router.post(
   '/csv',
   authenticate,
   requireAdmin,
-  (req, res, next) => {
+  (req: Request, res: Response, next: NextFunction) => {
     upload.single('file')(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -152,19 +174,27 @@ router.post(
             },
           });
         }
+        // Log detailed error server-side
+        logger.error('Multer upload error', { code: err.code, message: err.message, field: err.field });
         return res.status(400).json({
           success: false,
           error: {
             code: 'UPLOAD_ERROR',
-            message: err.message,
+            message: process.env.NODE_ENV === 'production'
+              ? 'File upload failed'
+              : err.message,
           },
         });
       } else if (err) {
+        // Log detailed error server-side
+        logger.error('File validation error', { message: err.message });
         return res.status(400).json({
           success: false,
           error: {
             code: 'INVALID_FILE',
-            message: err.message,
+            message: process.env.NODE_ENV === 'production'
+              ? 'Invalid file'
+              : err.message,
           },
         });
       }
@@ -190,8 +220,15 @@ router.post(
     try {
       parsedRows = importService.parseCSV(req.file.buffer);
     } catch (error) {
+      // Log detailed error server-side
+      logger.error('CSV parsing error', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        filename: req.file.originalname
+      });
       throw Errors.badRequest(
-        error instanceof Error ? error.message : 'Failed to parse CSV file'
+        process.env.NODE_ENV === 'production'
+          ? 'Failed to parse CSV file'
+          : (error instanceof Error ? error.message : 'Failed to parse CSV file')
       );
     }
 
