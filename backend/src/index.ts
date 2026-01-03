@@ -26,6 +26,7 @@ import passwordResetRoutes from './routes/passwordReset';
 import adminRoutes from './routes/admin';
 import organizationRoutes from './routes/organizations';
 import healthRoutes from './routes/health';
+import securityRoutes from './routes/security';
 
 // Load environment variables
 dotenv.config();
@@ -131,6 +132,9 @@ app.use(helmet.contentSecurityPolicy({
     imgSrc: ["'self'", "data:", "blob:"],
   },
 }));
+
+// Security.txt route (RFC 9116) - must be accessible without authentication
+app.use(securityRoutes);
 
 // Apply rate limiting to all API routes
 app.use('/api', apiLimiter);
