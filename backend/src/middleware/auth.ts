@@ -28,10 +28,11 @@ const getJwtSecret = (): string => {
 const getJwtRefreshSecret = (): string => {
   const secret = process.env.JWT_REFRESH_SECRET;
   if (!secret) {
-    // Fall back to JWT_SECRET if JWT_REFRESH_SECRET not set (backward compatibility)
     if (process.env.NODE_ENV === 'production') {
-      console.warn('WARNING: JWT_REFRESH_SECRET not set, using JWT_SECRET for refresh tokens. This is insecure.');
+      throw new Error('JWT_REFRESH_SECRET must be set in production');
     }
+    // Allow fallback in development only
+    console.warn('WARNING: JWT_REFRESH_SECRET not set, using JWT_SECRET for refresh tokens. This is insecure.');
     return getJwtSecret();
   }
   return secret;

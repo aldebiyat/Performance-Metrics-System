@@ -427,3 +427,46 @@ describe('Auth Service', () => {
     });
   });
 });
+
+describe('JWT secret requirements', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('should throw error in production when JWT_REFRESH_SECRET not set', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'test-secret';
+    delete process.env.JWT_REFRESH_SECRET;
+
+    jest.resetModules();
+
+    await expect(async () => {
+      const { generateRefreshToken } = await import('../middleware/auth');
+      generateRefreshToken({ userId: 1, role: 'user' });
+    }).rejects.toThrow('JWT_REFRESH_SECRET must be set in production');
+  });
+
+  it('should allow fallback in development with warning', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.JWT_SECRET = 'test-secret';
+    delete process.env.JWT_REFRESH_SECRET;
+
+    jest.resetModules();
+    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    const { generateRefreshToken } = await import('../middleware/auth');
+    const token = generateRefreshToken({ userId: 1, role: 'user' });
+
+    expect(token).toBeDefined();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('WARNING'));
+
+    consoleSpy.mockRestore();
+  });
+});
