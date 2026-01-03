@@ -460,14 +460,25 @@ describe('JWT secret requirements', () => {
     delete process.env.JWT_REFRESH_SECRET;
 
     jest.resetModules();
-    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    // Mock the logger module to capture warn calls
+    const mockWarn = jest.fn();
+    jest.doMock('../config/logger', () => ({
+      __esModule: true,
+      default: {
+        warn: mockWarn,
+        error: jest.fn(),
+        info: jest.fn(),
+        debug: jest.fn(),
+      },
+    }));
 
     const { generateRefreshToken } = await import('../middleware/auth');
     const token = generateRefreshToken({ userId: 1, role: 'user' });
 
     expect(token).toBeDefined();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('WARNING'));
+    expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining('JWT_REFRESH_SECRET not set'));
 
-    consoleSpy.mockRestore();
+    jest.dontMock('../config/logger');
   });
 });

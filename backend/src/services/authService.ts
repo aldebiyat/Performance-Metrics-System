@@ -7,6 +7,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { Errors } from '../middleware/errorHandler';
 import { emailService } from './emailService';
 import { loginAttemptService } from './loginAttemptService';
+import logger from '../config/logger';
 
 export const authService = {
   async register(email: string, password: string, name?: string): Promise<{ user: Omit<User, 'password_hash'>; tokens: AuthTokens }> {
@@ -84,7 +85,7 @@ export const authService = {
       await emailService.sendVerificationEmail(user.email, verificationToken);
     } catch (error) {
       // Log error but don't fail registration
-      console.error('Failed to send verification email:', error);
+      logger.error('Failed to send verification email', { error: error instanceof Error ? error.message : String(error) });
     }
 
     return { user, tokens };
@@ -308,7 +309,7 @@ export const authService = {
     try {
       await emailService.sendVerificationEmail(user.email, verificationToken);
     } catch (error) {
-      console.error('Failed to send verification email:', error);
+      logger.error('Failed to send verification email', { error: error instanceof Error ? error.message : String(error) });
       throw Errors.internal('Failed to send verification email');
     }
 

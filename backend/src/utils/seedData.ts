@@ -1,6 +1,7 @@
 import { query } from '../config/database';
 import fs from 'fs';
 import path from 'path';
+import logger from '../config/logger';
 
 interface CSVRow {
   name: string;
@@ -43,7 +44,7 @@ const toSlug = (name: string): string => {
 };
 
 export async function initializeDatabase(): Promise<void> {
-  console.log('Initializing database schema...');
+  logger.info('Initializing database schema...');
 
   // Read and execute schema
   const schemaPath = path.join(__dirname, '../config/schema.sql');
@@ -61,25 +62,25 @@ export async function initializeDatabase(): Promise<void> {
     } catch (err: any) {
       // Ignore "already exists" errors
       if (!err.message.includes('already exists')) {
-        console.error('Schema error:', err.message);
+        logger.error('Schema error', { error: err.message });
       }
     }
   }
 
-  console.log('Database schema initialized.');
+  logger.info('Database schema initialized.');
 }
 
 export async function seedFromCSV(): Promise<void> {
-  console.log('Checking if seed data exists...');
+  logger.info('Checking if seed data exists...');
 
   // Check if data already exists
   const existingData = await query('SELECT COUNT(*) FROM categories');
   if (parseInt(existingData.rows[0].count) > 0) {
-    console.log('Data already seeded, skipping...');
+    logger.info('Data already seeded, skipping...');
     return;
   }
 
-  console.log('Seeding data from CSV...');
+  logger.info('Seeding data from CSV...');
 
   // Insert categories
   const categories = [
@@ -155,7 +156,7 @@ export async function seedFromCSV(): Promise<void> {
     }
   }
 
-  console.log('Data seeded successfully.');
+  logger.info('Data seeded successfully.');
 }
 
 export async function runMigrations(): Promise<void> {

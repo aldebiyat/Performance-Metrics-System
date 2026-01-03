@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { TokenPayload } from '../types';
 import { Errors } from './errorHandler';
 import { tokenBlacklistService } from '../services/tokenBlacklistService';
+import logger from '../config/logger';
 
 const JWT_ISSUER = process.env.JWT_ISSUER || 'pms-api';
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'pms-client';
@@ -32,7 +33,7 @@ const getJwtRefreshSecret = (): string => {
       throw new Error('JWT_REFRESH_SECRET must be set in production');
     }
     // Allow fallback in development only
-    console.warn('WARNING: JWT_REFRESH_SECRET not set, using JWT_SECRET for refresh tokens. This is insecure.');
+    logger.warn('JWT_REFRESH_SECRET not set, using JWT_SECRET for refresh tokens. This is insecure.');
     return getJwtSecret();
   }
   return secret;

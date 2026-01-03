@@ -41,7 +41,7 @@ export const query = async (text: string, params?: QueryParam[]) => {
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
   if (process.env.NODE_ENV === 'development') {
-    console.log('Executed query', { text: text.substring(0, 50), duration, rows: res.rowCount });
+    logger.debug('Executed query', { text: text.substring(0, 50), duration, rows: res.rowCount });
   }
   return res;
 };
@@ -60,7 +60,7 @@ export const createTransactionalQuery = (client: PoolClient) => {
     const res = await client.query(text, params);
     const duration = Date.now() - start;
     if (process.env.NODE_ENV === 'development') {
-      console.log('Executed transactional query', { text: text.substring(0, 50), duration, rows: res.rowCount });
+      logger.debug('Executed transactional query', { text: text.substring(0, 50), duration, rows: res.rowCount });
     }
     return res;
   };
