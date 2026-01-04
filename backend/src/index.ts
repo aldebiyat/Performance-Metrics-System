@@ -85,7 +85,7 @@ app.use(express.urlencoded({
 app.use(cookieParser());
 
 // Content-Type validation for requests with body
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, res: Response, next: NextFunction): void => {
   const methodsWithBody = ['POST', 'PUT', 'PATCH'];
 
   if (methodsWithBody.includes(req.method)) {
@@ -95,20 +95,22 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     // Only validate if there's a body
     if (contentLength && contentLength !== '0') {
       if (!contentType) {
-        return res.status(415).json({
+        res.status(415).json({
           success: false,
           error: 'Content-Type header is required for requests with a body',
         });
+        return;
       }
 
       const allowedTypes = ['application/json', 'multipart/form-data', 'application/x-www-form-urlencoded'];
       const isAllowed = allowedTypes.some(type => contentType.includes(type));
 
       if (!isAllowed) {
-        return res.status(415).json({
+        res.status(415).json({
           success: false,
           error: 'Unsupported Content-Type',
         });
+        return;
       }
     }
   }
@@ -137,7 +139,7 @@ app.use(helmet.contentSecurityPolicy({
 app.use(securityRoutes);
 
 // Apply rate limiting to all API routes
-app.use('/api', apiLimiter);
+app.use('/api', ...apiLimiter);
 
 // Apply CSRF protection to API routes (after cookie parser, before routes)
 app.use('/api', csrfProtection);
@@ -162,7 +164,7 @@ app.use('/api/organizations', organizationRoutes);
 
 // Sentry error handler (must be before other error handlers)
 if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler());
+  Sentry.setupExpressErrorHandler(app);
 }
 
 // Error handling middleware (must be last)

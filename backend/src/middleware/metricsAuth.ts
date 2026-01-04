@@ -42,22 +42,25 @@ export const isPrivateIP = (ip: string): boolean => {
  * If METRICS_TOKEN is not configured:
  * - Only allows access from private/internal IP addresses
  */
-export const metricsAuth = (req: Request, res: Response, next: NextFunction) => {
+export const metricsAuth = (req: Request, res: Response, next: NextFunction): void => {
   const metricsToken = process.env.METRICS_TOKEN;
 
   // If no token configured, only allow internal/localhost access
   if (!metricsToken) {
     const clientIp = req.ip || req.socket.remoteAddress || '';
     if (isPrivateIP(clientIp)) {
-      return next();
+      next();
+      return;
     }
-    return res.status(403).json({ error: 'Metrics endpoint restricted to internal access' });
+    res.status(403).json({ error: 'Metrics endpoint restricted to internal access' });
+    return;
   }
 
   // Check bearer token
   const authHeader = req.headers.authorization;
   if (authHeader === `Bearer ${metricsToken}`) {
-    return next();
+    next();
+    return;
   }
 
   res.status(401).json({ error: 'Unauthorized' });

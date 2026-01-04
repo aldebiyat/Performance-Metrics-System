@@ -25,41 +25,46 @@ export const setCsrfCookie = (res: Response, csrfToken: string): void => {
   });
 };
 
-export const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
+export const csrfProtection = (req: Request, res: Response, next: NextFunction): void => {
   // Skip CSRF check for safe methods
   if (SAFE_METHODS.includes(req.method)) {
-    return next();
+    next();
+    return;
   }
 
   // Skip for exempt paths (pre-auth endpoints)
   if (EXEMPT_PATHS.some(path => req.path.startsWith(path))) {
-    return next();
+    next();
+    return;
   }
 
   const headerToken = req.headers['x-csrf-token'] as string;
   const cookieToken = req.cookies?.csrf_token;
 
   if (!headerToken || !cookieToken) {
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       error: 'CSRF token missing',
     });
+    return;
   }
 
   // Constant-time comparison to prevent timing attacks
   try {
     if (!crypto.timingSafeEqual(Buffer.from(headerToken), Buffer.from(cookieToken))) {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         error: 'CSRF token invalid',
       });
+      return;
     }
   } catch {
     // Handle buffer length mismatch
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       error: 'CSRF token invalid',
     });
+    return;
   }
 
   next();

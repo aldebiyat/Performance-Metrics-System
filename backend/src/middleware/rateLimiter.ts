@@ -52,7 +52,7 @@ const LOG_THROTTLE_MS = 60000; // Log once per minute max
  * Returns 503 Service Unavailable instead of allowing requests through
  * with an ineffective in-memory store.
  */
-const redisAvailabilityCheck = (req: Request, res: Response, next: NextFunction) => {
+const redisAvailabilityCheck = (req: Request, res: Response, next: NextFunction): void => {
   if (!redisClient || !redisClient.isOpen) {
     const now = Date.now();
     // Throttle logging to prevent log spam under high load
@@ -60,10 +60,11 @@ const redisAvailabilityCheck = (req: Request, res: Response, next: NextFunction)
       logger.error('CRITICAL: Rate limiter Redis unavailable - rejecting requests for security');
       lastRedisUnavailableLogTime = now;
     }
-    return res.status(503).json({
+    res.status(503).json({
       success: false,
       error: 'Service temporarily unavailable. Please try again later.',
     });
+    return;
   }
   next();
 };
