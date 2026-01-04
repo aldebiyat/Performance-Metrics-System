@@ -12,7 +12,8 @@ import { apiLimiter, initRateLimitRedis } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/requestLogger';
 import logger from './config/logger';
 import { swaggerSpec } from './config/swagger';
-import { initRedis } from './config/redis';
+import { initRedis, closeRedis } from './config/redis';
+import pool from './config/database';
 import authRoutes from './routes/auth';
 import metricsRoutes from './routes/metrics';
 import prometheusMetricsRoutes from './routes/metrics-prom';
@@ -173,6 +174,8 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5001;
 
+let server: ReturnType<typeof app.listen> | null = null;
+
 async function startServer() {
   try {
     // Initialize database and seed data
@@ -184,7 +187,7 @@ async function startServer() {
     // Initialize Redis for rate limiting (optional)
     await initRateLimitRedis();
 
-    const server = app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       logger.info(`Server is running on http://localhost:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
@@ -197,5 +200,45 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Graceful shutdown handler
+async function gracefulShutdown(signal: string) {
+  logger.info(`Received ${signal}. Starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  if (server) {
+    server.close(async () => {
+      logger.info('HTTP server closed');
+
+      try {
+        // Close Redis connections
+        await closeRedis();
+        logger.info('Redis connections closed');
+
+        // Close database pool
+        await pool.end();
+        logger.info('Database pool closed');
+
+        logger.info('Graceful shutdown completed');
+        process.exit(0);
+      } catch (error) {
+        logger.error('Error during shutdown:', error);
+        process.exit(1);
+      }
+    });
+  } else {
+    process.exit(0);
+  }
+
+  // Force exit after 30 seconds
+  setTimeout(() => {
+    logger.error('Graceful shutdown timeout - forcing exit');
+    process.exit(1);
+  }, 30000);
+}
+
+// Register shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 startServer();
