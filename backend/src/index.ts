@@ -177,6 +177,27 @@ const PORT = process.env.PORT || 5001;
 let server: ReturnType<typeof app.listen> | null = null;
 
 async function startServer() {
+  // Validate required environment variables in production
+  if (process.env.NODE_ENV === 'production') {
+    const requiredVars = [
+      'JWT_SECRET',
+      'JWT_REFRESH_SECRET',
+      'DB_HOST',
+      'CORS_ORIGIN',
+    ];
+    const missing = requiredVars.filter(v => !process.env[v]);
+    if (missing.length > 0) {
+      logger.error(`Missing required environment variables: ${missing.join(', ')}`);
+      process.exit(1);
+    }
+
+    // Ensure JWT secrets are different
+    if (process.env.JWT_SECRET === process.env.JWT_REFRESH_SECRET) {
+      logger.error('JWT_SECRET and JWT_REFRESH_SECRET must be different');
+      process.exit(1);
+    }
+  }
+
   try {
     // Initialize database and seed data
     await runMigrations();

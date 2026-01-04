@@ -6,6 +6,12 @@ if (!API_URL) {
   throw new Error('REACT_APP_API_URL environment variable is required');
 }
 
+// CSRF token management
+const getCsrfToken = (): string | null => {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
 // Token management - access token is kept in memory for security
 let accessToken: string | null = null;
 
@@ -86,6 +92,12 @@ export async function apiRequest<T>(
 
   if (requireAuth && accessToken) {
     requestHeaders['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  // Add CSRF token for state-changing requests
+  const csrfToken = getCsrfToken();
+  if (csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    requestHeaders['X-CSRF-Token'] = csrfToken;
   }
 
   let response = await fetch(`${API_URL}${endpoint}`, {
